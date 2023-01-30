@@ -1,0 +1,8 @@
+# ignore all binary files
+bin/
+
+# ignore all library files
+lib/
+
+# ignore all intermidiate files
+obj/

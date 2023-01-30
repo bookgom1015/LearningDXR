@@ -1,0 +1,205 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <Filter Include="Source Files">
+      <UniqueIdentifier>{4FC737F1-C7A5-4376-A066-2A32D752A2FF}</UniqueIdentifier>
+      <Extensions>cpp;c;cc;cxx;def;odl;idl;hpj;bat;asm;asmx</Extensions>
+    </Filter>
+    <Filter Include="Header Files">
+      <UniqueIdentifier>{93995380-89BD-4b04-88EB-625FBE52EBFB}</UniqueIdentifier>
+      <Extensions>h;hh;hpp;hxx;hm;inl;inc;ipp;xsd</Extensions>
+    </Filter>
+    <Filter Include="Resource Files">
+      <UniqueIdentifier>{67DA6AB6-F800-4c08-8B7A-83BB121AAD01}</UniqueIdentifier>
+      <Extensions>rc;ico;cur;bmp;dlg;rc2;rct;bin;rgs;gif;jpg;jpeg;jpe;resx;tiff;tif;png;wav;mfcribbon-ms</Extensions>
+    </Filter>
+    <Filter Include="Common Files">
+      <UniqueIdentifier>{c4eede9f-64a4-466c-b3d2-f87c5e7ad337}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Common Files\Public">
+      <UniqueIdentifier>{5d99342f-010e-4057-9cc7-d822f140cafb}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Common Files\Private">
+      <UniqueIdentifier>{57d866c8-2fda-48ab-8948-46aee6852a26}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header Files\Render">
+      <UniqueIdentifier>{c824641b-2186-4b98-afc5-bed7fe2ab3f9}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\Render">
+      <UniqueIdentifier>{740275db-2d82-4e2b-ad80-872815824b40}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header Files\Util">
+      <UniqueIdentifier>{94ca0272-3ca5-4f79-8b7c-789b52aa8a53}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\Util">
+      <UniqueIdentifier>{747b7631-9417-4ce9-92c2-431f873ab127}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Shader Files">
+      <UniqueIdentifier>{bf80d2a0-98cc-420d-8382-5d0f1594821e}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Shader Files\Raster">
+      <UniqueIdentifier>{d83316d9-e9bb-4839-9994-2b59a7974ae3}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Shader Files\Raytrace">
+      <UniqueIdentifier>{61956294-e902-49f8-b3df-a92567204f1a}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Common Files\Private\ImGui">
+      <UniqueIdentifier>{f444a1cc-a95e-4c46-9b37-8465229e4ddb}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="include\Application.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="include\Camera.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="include\GameTimer.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="include\Mesh.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="include\RenderMacros.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="include\d3dx12.h">
+      <Filter>Common Files\Public</Filter>
+    </ClInclude>
+    <ClInclude Include="include\GeometryGenerator.h">
+      <Filter>Common Files\Public</Filter>
+    </ClInclude>
+    <ClInclude Include="include\MathHelper.h">
+      <Filter>Common Files\Public</Filter>
+    </ClInclude>
+    <ClInclude Include="include\LowRenderer.h">
+      <Filter>Header Files\Render</Filter>
+    </ClInclude>
+    <ClInclude Include="include\Renderer.h">
+      <Filter>Header Files\Render</Filter>
+    </ClInclude>
+    <ClInclude Include="include\UploadBuffer.h">
+      <Filter>Header Files\Util</Filter>
+    </ClInclude>
+    <ClInclude Include="include\D3D12Util.h">
+      <Filter>Header Files\Util</Filter>
+    </ClInclude>
+    <ClInclude Include="include\ShaderManager.h">
+      <Filter>Header Files\Render</Filter>
+    </ClInclude>
+    <ClInclude Include="include\RTXStructures.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="include\FrameResource.h">
+      <Filter>Header Files\Render</Filter>
+    </ClInclude>
+    <ClInclude Include="include\Logger.h">
+      <Filter>Header Files\Util</Filter>
+    </ClInclude>
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="include\LowRenderer.inl">
+      <Filter>Header Files\Render</Filter>
+    </None>
+    <None Include="include\Renderer.inl">
+      <Filter>Header Files\Render</Filter>
+    </None>
+    <None Include="include\UploadBuffer.inl">
+      <Filter>Header Files\Util</Filter>
+    </None>
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="src\Application.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="src\Camera.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="src\GameTimer.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="src\RTXStructures.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="src\GeometryGenerator.cpp">
+      <Filter>Common Files\Private</Filter>
+    </ClCompile>
+    <ClCompile Include="src\MathHelper.cpp">
+      <Filter>Common Files\Private</Filter>
+    </ClCompile>
+    <ClCompile Include="src\Renderer.cpp">
+      <Filter>Source Files\Render</Filter>
+    </ClCompile>
+    <ClCompile Include="src\LowRenderer.cpp">
+      <Filter>Source Files\Render</Filter>
+    </ClCompile>
+    <ClCompile Include="src\D3D12Util.cpp">
+      <Filter>Source Files\Util</Filter>
+    </ClCompile>
+    <ClCompile Include="src\UploadBuffer.cpp">
+      <Filter>Source Files\Util</Filter>
+    </ClCompile>
+    <ClCompile Include="src\FrameResource.cpp">
+      <Filter>Source Files\Render</Filter>
+    </ClCompile>
+    <ClCompile Include="src\ShaderManager.cpp">
+      <Filter>Source Files\Render</Filter>
+    </ClCompile>
+    <ClCompile Include="src\Logger.cpp">
+      <Filter>Source Files\Util</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Users\bookg\Documents\Visual Studio 2017\Libraries\imgui\imgui.cpp">
+      <Filter>Common Files\Private\ImGui</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Users\bookg\Documents\Visual Studio 2017\Libraries\imgui\imgui_demo.cpp">
+      <Filter>Common Files\Private\ImGui</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Users\bookg\Documents\Visual Studio 2017\Libraries\imgui\imgui_draw.cpp">
+      <Filter>Common Files\Private\ImGui</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Users\bookg\Documents\Visual Studio 2017\Libraries\imgui\imgui_widgets.cpp">
+      <Filter>Common Files\Private\ImGui</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Users\bookg\Documents\Visual Studio 2017\Libraries\imgui\backends\imgui_impl_dx12.cpp">
+      <Filter>Common Files\Private\ImGui</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Users\bookg\Documents\Visual Studio 2017\Libraries\imgui\backends\imgui_impl_win32.cpp">
+      <Filter>Common Files\Private\ImGui</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Users\bookg\Documents\Visual Studio 2017\Libraries\imgui\imgui_tables.cpp">
+      <Filter>Common Files\Private\ImGui</Filter>
+    </ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <FxCompile Include="assets\shaders\ClosestHit.hlsl">
+      <Filter>Shader Files\Raytrace</Filter>
+    </FxCompile>
+    <FxCompile Include="assets\shaders\Miss.hlsl">
+      <Filter>Shader Files\Raytrace</Filter>
+    </FxCompile>
+    <FxCompile Include="assets\shaders\RayGen.hlsl">
+      <Filter>Shader Files\Raytrace</Filter>
+    </FxCompile>
+    <FxCompile Include="assets\shaders\Common.hlsl">
+      <Filter>Shader Files\Raster</Filter>
+    </FxCompile>
+    <FxCompile Include="assets\shaders\Default.hlsl">
+      <Filter>Shader Files\Raster</Filter>
+    </FxCompile>
+    <FxCompile Include="assets\shaders\Gizmo.hlsl">
+      <Filter>Shader Files\Raster</Filter>
+    </FxCompile>
+    <FxCompile Include="assets\shaders\LightingUtil.hlsl">
+      <Filter>Shader Files\Raster</Filter>
+    </FxCompile>
+    <FxCompile Include="assets\shaders\Samplers.hlsl">
+      <Filter>Shader Files\Raster</Filter>
+    </FxCompile>
+    <FxCompile Include="assets\shaders\SampleToBackBuffer.hlsl">
+      <Filter>Shader Files\Raster</Filter>
+    </FxCompile>
+    <FxCompile Include="assets\shaders\RTXCommon.hlsl">
+      <Filter>Shader Files\Raytrace</Filter>
+    </FxCompile>
+  </ItemGroup>
+</Project>
