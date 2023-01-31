@@ -87,6 +87,7 @@ Renderer::Renderer() {
 	bRaytracing = false;
 	bShowImgGui = false;
 	mCurrFrameResourceIndex = 0;
+	mGeometryBufferCount = 0;
 
 	mShaderManager = std::make_unique<ShaderManager>();
 	mMainPassCB = std::make_unique<PassConstants>();
@@ -561,7 +562,7 @@ bool Renderer::BuildRootSignatures() {
 
 bool Renderer::BuildDescriptorHeaps() {
 	D3D12_DESCRIPTOR_HEAP_DESC heapDesc = {};
-	heapDesc.NumDescriptors = 32;
+	heapDesc.NumDescriptors = 256;
 	heapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
 	heapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
 	md3dDevice->CreateDescriptorHeap(&heapDesc, IID_PPV_ARGS(&mDescriptorHeap));
@@ -592,38 +593,43 @@ bool Renderer::BuildDescriptors() {
 		}
 	}
 
-	// Create the vertex buffer SRV
-	auto geo = mGeometries["sphere"].get();
-
 	D3D12_SHADER_RESOURCE_VIEW_DESC vertexSrvDesc = {};
 	vertexSrvDesc.ViewDimension = D3D12_SRV_DIMENSION_BUFFER;
 	vertexSrvDesc.Format = DXGI_FORMAT_UNKNOWN;
 	vertexSrvDesc.Buffer.Flags = D3D12_BUFFER_SRV_FLAG_NONE;
 	vertexSrvDesc.Buffer.StructureByteStride = sizeof(Vertex);
-	vertexSrvDesc.Buffer.FirstElement = 0;
-	vertexSrvDesc.Buffer.NumElements = static_cast<UINT>(geo->VertexBufferCPU->GetBufferSize() / sizeof(Vertex));
 	vertexSrvDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
-
-	md3dDevice->CreateShaderResourceView(
-		geo->VertexBufferGPU.Get(), 
-		&vertexSrvDesc, 
-		D3D12Util::GetCpuHandle(pDescHeap, static_cast<INT>(EDescriptors::ES_Vertices), descSize)
-	);
 
 	D3D12_SHADER_RESOURCE_VIEW_DESC indexSrvDesc = {};
 	indexSrvDesc.ViewDimension = D3D12_SRV_DIMENSION_BUFFER;
 	indexSrvDesc.Format = DXGI_FORMAT_R32_TYPELESS;
 	indexSrvDesc.Buffer.Flags = D3D12_BUFFER_SRV_FLAG_RAW;
 	indexSrvDesc.Buffer.StructureByteStride = 0;
-	indexSrvDesc.Buffer.FirstElement = 0;
-	indexSrvDesc.Buffer.NumElements = static_cast<UINT>(geo->IndexBufferCPU->GetBufferSize() / sizeof(std::uint32_t));
 	indexSrvDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
 
-	md3dDevice->CreateShaderResourceView(
-		geo->IndexBufferGPU.Get(),
-		&indexSrvDesc,
-		D3D12Util::GetCpuHandle(pDescHeap, static_cast<INT>(EDescriptors::ES_Indices), descSize)
-	);
+	for (const auto& g : mGeometries) {
+		auto geo = g.second.get();
+
+		vertexSrvDesc.Buffer.FirstElement = 0;
+		vertexSrvDesc.Buffer.NumElements = static_cast<UINT>(geo->VertexBufferCPU->GetBufferSize() / sizeof(Vertex));
+
+		md3dDevice->CreateShaderResourceView(
+			geo->VertexBufferGPU.Get(),
+			&vertexSrvDesc,
+			D3D12Util::GetCpuHandle(pDescHeap, static_cast<INT>(EDescriptors::ES_Vertices) + mGeometryBufferCount, descSize)
+		);
+
+		indexSrvDesc.Buffer.FirstElement = 0;
+		indexSrvDesc.Buffer.NumElements = static_cast<UINT>(geo->IndexBufferCPU->GetBufferSize() / sizeof(std::uint32_t));
+
+		md3dDevice->CreateShaderResourceView(
+			geo->IndexBufferGPU.Get(),
+			&indexSrvDesc,
+			D3D12Util::GetCpuHandle(pDescHeap, static_cast<INT>(EDescriptors::ES_Indices) + mGeometryBufferCount, descSize)
+		);
+
+		++mGeometryBufferCount;
+	}
 
 	return true;
 }
@@ -734,15 +740,17 @@ bool Renderer::BuildDXRRootSignatures() {
 	// Global root signature
 	//
 	{
-		CD3DX12_DESCRIPTOR_RANGE ranges[2];
+		CD3DX12_DESCRIPTOR_RANGE ranges[3];
 		ranges[0].Init(D3D12_DESCRIPTOR_RANGE_TYPE_UAV, 1, 0); // 1 output texture
-		ranges[1].Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 2, 1); // 2 static vertex and index buffers
+		ranges[1].Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 64, 0, 1); // 1 vertex buffers
+		ranges[2].Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 64, 0, 2); // 1 index buffers
 
 		CD3DX12_ROOT_PARAMETER params[static_cast<int>(EGlobalRootSignatureParams::Count)];
 		params[static_cast<int>(EGlobalRootSignatureParams::EOutput)].InitAsDescriptorTable(1, &ranges[0]);
 		params[static_cast<int>(EGlobalRootSignatureParams::EAccelerationStructure)].InitAsShaderResourceView(0);
 		params[static_cast<int>(EGlobalRootSignatureParams::EPassCB)].InitAsConstantBufferView(0);
-		params[static_cast<int>(EGlobalRootSignatureParams::EGeometryBuffers)].InitAsDescriptorTable(1, &ranges[1]);
+		params[static_cast<int>(EGlobalRootSignatureParams::EVertices)].InitAsDescriptorTable(1, &ranges[1]);
+		params[static_cast<int>(EGlobalRootSignatureParams::EIndices)].InitAsDescriptorTable(1, &ranges[2]);
 
 		CD3DX12_ROOT_SIGNATURE_DESC globalRootSignatureDesc(_countof(params), params);
 		CheckIsValid(D3D12Util::CreateRootSignature(md3dDevice.Get(), globalRootSignatureDesc, mRootSignatures["dxr_global"].GetAddressOf()));
@@ -752,7 +760,7 @@ bool Renderer::BuildDXRRootSignatures() {
 	//
 	{
 		CD3DX12_ROOT_PARAMETER params[static_cast<int>(ELocalRootSignatureParams::Count)];
-		params[static_cast<int>(ELocalRootSignatureParams::EObjectCB)].InitAsConstants(D3D12Util::CalcNumUintValues<MaterialConstants>(), 1);
+		params[static_cast<int>(ELocalRootSignatureParams::EMatCB)].InitAsConstantBufferView(1);
 
 		CD3DX12_ROOT_SIGNATURE_DESC localRootSignatureDesc(_countof(params), params);
 		localRootSignatureDesc.Flags = D3D12_ROOT_SIGNATURE_FLAG_LOCAL_ROOT_SIGNATURE;
@@ -993,24 +1001,23 @@ bool Renderer::BuildShaderTables() {
 	missShaderTable.push_back(ShaderRecord(missShaderIdentifier, shaderIdentifierSize));
 	mShaderTables["miss"] = missShaderTable.GetResource();
 
-	// Hit group shader table
-	ShaderTable hitGroupTable(md3dDevice.Get(), 1, shaderIdentifierSize);
-	CheckIsValid(hitGroupTable.Initialze());
-	{
-		auto& matCB = mCurrFrameResource->MaterialCB;
+	for (int i = 0; i < gNumFrameResources; ++i) {
+		// Hit group shader table
+		ShaderTable hitGroupTable(md3dDevice.Get(), 1, shaderIdentifierSize);
+		CheckIsValid(hitGroupTable.Initialze());
+		{
+			struct RootArguments {
+				D3D12_GPU_VIRTUAL_ADDRESS MatCB;
+			} rootArguments;
 
-		struct RootArguments {
-			MaterialConstants MatCB;
-		} rootArguments;
+			rootArguments.MatCB = mFrameResources[i]->MaterialCB.Resource()->GetGPUVirtualAddress();
 
-		rootArguments.MatCB.DiffuseAlbedo = mMaterials["defaultMat"]->DiffuseAlbedo;
-		rootArguments.MatCB.FresnelR0 = mMaterials["defaultMat"]->FresnelR0;
-		rootArguments.MatCB.Roughness = mMaterials["defaultMat"]->Roughness;
-		rootArguments.MatCB.MatTransform = mMaterials["defaultMat"]->MatTransform;
-
-		hitGroupTable.push_back(ShaderRecord(hitGroupShaderIdentifier, shaderIdentifierSize, &rootArguments, sizeof(rootArguments)));
+			hitGroupTable.push_back(ShaderRecord(hitGroupShaderIdentifier, shaderIdentifierSize, &rootArguments, 8));
+		}
+		std::stringstream sstream;
+		sstream << "hitGroup_" << i;
+		mShaderTables[sstream.str().c_str()] = hitGroupTable.GetResource();
 	}
-	mShaderTables["hitGroup"] = hitGroupTable.GetResource();
 
 	return true;
 }
@@ -1174,12 +1181,19 @@ bool Renderer::Raytrace() {
 		D3D12Util::GetGpuHandle(pDescHeap, static_cast<INT>(EDescriptors::EU_Output) + mCurrFrameResourceIndex, cbvSrvUavDescriptorSize)
 	);
 	mCommandList->SetComputeRootDescriptorTable(
-		static_cast<UINT>(EGlobalRootSignatureParams::EGeometryBuffers),
+		static_cast<UINT>(EGlobalRootSignatureParams::EVertices),
 		D3D12Util::GetGpuHandle(pDescHeap, static_cast<INT>(EDescriptors::ES_Vertices), cbvSrvUavDescriptorSize)
 	);
+	mCommandList->SetComputeRootDescriptorTable(
+		static_cast<UINT>(EGlobalRootSignatureParams::EIndices),
+		D3D12Util::GetGpuHandle(pDescHeap, static_cast<INT>(EDescriptors::ES_Indices), cbvSrvUavDescriptorSize)
+	);
+
+	std::stringstream sstream;
+	sstream << "hitGroup_" << mCurrFrameResourceIndex;
 
 	D3D12_DISPATCH_RAYS_DESC dispatchDesc = {};
-	const auto& hitGroup = mShaderTables["hitGroup"];
+	const auto& hitGroup = mShaderTables[sstream.str().c_str()];
 	const auto& miss = mShaderTables["miss"];
 	const auto& rayGen = mShaderTables["rayGen"];
 	dispatchDesc.RayGenerationShaderRecord.StartAddress = rayGen->GetGPUVirtualAddress();

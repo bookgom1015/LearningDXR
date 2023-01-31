@@ -53,6 +53,8 @@ struct RenderItem {
 	int BaseVertexLocation = 0;
 };
 
+const int gNumGeometryBuffers = 64;
+
 enum class ERenderTypes {
 	EOpaque = 0,
 	EGizmo,
@@ -75,20 +77,21 @@ enum class EGlobalRootSignatureParams {
 	EOutput = 0,
 	EAccelerationStructure,
 	EPassCB,
-	EGeometryBuffers,
+	EVertices,
+	EIndices,
 	Count
 };
 
 enum class ELocalRootSignatureParams {
-	EObjectCB = 0,
+	EMatCB = 0,
 	Count
 };
 
 enum class EDescriptors {
-	ES_Font = 0,
-	ES_Vertices,
-	ES_Indices,
-	EU_Output,
+	ES_Vertices = 0,
+	ES_Indices	= ES_Vertices + gNumGeometryBuffers,
+	EU_Output	= ES_Indices + gNumGeometryBuffers,
+	ES_Font,
 	Count
 };
 
@@ -209,6 +212,8 @@ private:
 	std::unordered_map<std::string, Microsoft::WRL::ComPtr<ID3D12StateObjectProperties>> mDXRPSOProps;
 
 	std::unordered_map<std::string, Microsoft::WRL::ComPtr<ID3D12Resource>> mShaderTables;
+
+	int mGeometryBufferCount;
 };
 
 #include "Renderer.inl"

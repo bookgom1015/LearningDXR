@@ -19,10 +19,10 @@ struct Vertex {
 //
 // Global root signatures
 //
-RWTexture2D<float4>				gOutput		: register(u0);
-RaytracingAccelerationStructure	gBVH		: register(t0);
-StructuredBuffer<Vertex>		gVertices	: register(t1);
-ByteAddressBuffer				gIndices	: register(t2);
+RWTexture2D<float4>				gOutput			: register(u0);
+RaytracingAccelerationStructure	gBVH			: register(t0);
+StructuredBuffer<Vertex>		gVertices[64]	: register(t0, space1);
+ByteAddressBuffer				gIndices[64]	: register(t0, space2);
 
 cbuffer cbPass	: register(b0) {
 	float4x4	gView;
@@ -40,7 +40,7 @@ cbuffer cbPass	: register(b0) {
 //
 // Local root signatures
 //
-cbuffer cbObject : register(b1) {
+cbuffer cbMat : register(b1) {
 	float4		lDiffuseAlbedo;
 	float3		lFresnelR0;
 	float		lRoughness;
@@ -51,8 +51,8 @@ cbuffer cbObject : register(b1) {
 // Helper functions
 //
 // Load three 32 bit indices from a byte addressed buffer.
-uint3 Load3x32BitIndices(uint offsetBytes) {
-	return gIndices.Load3(offsetBytes);
+uint3 Load3x32BitIndices(uint offsetBytes, uint instID) {
+	return gIndices[instID].Load3(offsetBytes);
 }
 
 // Retrieve hit world position.

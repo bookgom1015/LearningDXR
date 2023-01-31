@@ -52,14 +52,16 @@ void ClosestHit(inout RayPayload payload, in Attributes attr) {
 	uint triangleIndexStride = indicesPerTriangle * indexSizeInBytes;
 	uint baseIndex = PrimitiveIndex() * triangleIndexStride;
 
+	uint instID = InstanceID();
+
 	// Load up 3 32 bit indices for the triangle.
-	const uint3 indices = Load3x32BitIndices(baseIndex);
+	const uint3 indices = Load3x32BitIndices(baseIndex, instID);
 
 	// Retrieve corresponding vertex normals for the triangle vertices.
 	float3 vertexNormals[3] = {
-		gVertices[indices[0]].NormalW,
-		gVertices[indices[1]].NormalW,
-		gVertices[indices[2]].NormalW
+		gVertices[instID][indices[0]].NormalW,
+		gVertices[instID][indices[1]].NormalW,
+		gVertices[instID][indices[2]].NormalW
 	};
 
 	// Compute the triangle's normal.

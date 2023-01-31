@@ -96,6 +96,9 @@
     <ClInclude Include="include\Logger.h">
       <Filter>Header Files\Util</Filter>
     </ClInclude>
+    <ClInclude Include="include\SBTGenerator.h">
+      <Filter>Header Files\Util</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <None Include="include\LowRenderer.inl">
@@ -107,6 +110,7 @@
     <None Include="include\UploadBuffer.inl">
       <Filter>Header Files\Util</Filter>
     </None>
+    <None Include=".gitignore" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="src\Application.cpp">
@@ -168,6 +172,9 @@
     </ClCompile>
     <ClCompile Include="C:\Users\bookg\Documents\Visual Studio 2017\Libraries\imgui\imgui_tables.cpp">
       <Filter>Common Files\Private\ImGui</Filter>
+    </ClCompile>
+    <ClCompile Include="src\SBTGenerator.cpp">
+      <Filter>Source Files\Util</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
