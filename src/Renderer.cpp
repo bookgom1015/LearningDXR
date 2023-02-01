@@ -118,16 +118,15 @@ bool Renderer::Initialize(HWND hMainWnd, UINT width, UINT height) {
 	CheckIsValid(BuildGeometries());
 	CheckIsValid(BuildMaterials());
 	CheckIsValid(BuildResources());
+	CheckIsValid(BuildRootSignatures());
 	CheckIsValid(BuildDescriptorHeaps());
 	CheckIsValid(BuildDescriptors());
 
 	// Raterization
-	CheckIsValid(BuildRootSignatures());
 	CheckIsValid(BuildPSOs());
 	CheckIsValid(BuildRenderItems());
 
 	// Ray-tracing
-	CheckIsValid(BuildDXRRootSignatures());
 	CheckIsValid(BuildBLAS());
 	CheckIsValid(BuildTLAS());
 	CheckIsValid(BuildDXRPSOs());
@@ -330,7 +329,7 @@ bool Renderer::CompileShaders() {
 
 bool Renderer::BuildFrameResources() {
 	for (int i = 0; i < gNumFrameResources; i++) {
-		mFrameResources.push_back(std::make_unique<FrameResource>(md3dDevice.Get(), 1, 32, 32));
+		mFrameResources.push_back(std::make_unique<FrameResource>(md3dDevice.Get(), 1, gNumObjects, gNumMaterials));
 		CheckIsValid(mFrameResources.back()->Initialize());
 	}
 
@@ -395,8 +394,9 @@ bool Renderer::BuildGeometries() {
 		geo->VertexBufferByteSize = vbByteSize;
 		geo->IndexFormat = DXGI_FORMAT_R32_UINT;
 		geo->IndexBufferByteSize = ibByteSize;
+		geo->GeometryIndex = static_cast<UINT>(mGeometries.size());
 
-		geo->DrawArgs["sphere"] = sphereSubmesh;
+		geo->DrawArgs["sphere"] = sphereSubmesh; 
 
 		mGeometries[geo->Name] = std::move(geo);
 	}
@@ -456,6 +456,7 @@ bool Renderer::BuildGeometries() {
 		geo->VertexBufferByteSize = vbByteSize;
 		geo->IndexFormat = DXGI_FORMAT_R32_UINT;
 		geo->IndexBufferByteSize = ibByteSize;
+		geo->GeometryIndex = static_cast<UINT>(mGeometries.size());
 
 		geo->DrawArgs["grid"] = gridSubmesh;
 
@@ -466,14 +467,39 @@ bool Renderer::BuildGeometries() {
 }
 
 bool Renderer::BuildMaterials() {
-	auto defaultMat = std::make_unique<Material>();
-	defaultMat->Name = "defaultMat";
-	defaultMat->MatCBIndex = 0;
-	defaultMat->DiffuseAlbedo = XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f);
-	defaultMat->FresnelR0 = XMFLOAT3(0.88725f, 0.88725f, 0.88725f);
-	defaultMat->Roughness = 0.1f;
+	int count = 0;
 
-	mMaterials[defaultMat->Name] = std::move(defaultMat);
+	auto whiteMat = std::make_unique<Material>();
+	whiteMat->Name = "white";
+	whiteMat->MatSBIndex = count++;
+	whiteMat->DiffuseAlbedo = XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f);
+	whiteMat->FresnelR0 = XMFLOAT3(0.88725f, 0.88725f, 0.88725f);
+	whiteMat->Roughness = 0.1f;
+	mMaterials[whiteMat->Name] = std::move(whiteMat);
+
+	auto redMat = std::make_unique<Material>();
+	redMat->Name = "red";
+	redMat->MatSBIndex = count++;
+	redMat->DiffuseAlbedo = XMFLOAT4(1.0f, 0.0f, 0.0f, 1.0f);
+	redMat->FresnelR0 = XMFLOAT3(0.88725f, 0.88725f, 0.88725f);
+	redMat->Roughness = 0.1f;
+	mMaterials[redMat->Name] = std::move(redMat);
+
+	auto greenMat = std::make_unique<Material>();
+	greenMat->Name = "green";
+	greenMat->MatSBIndex = count++;
+	greenMat->DiffuseAlbedo = XMFLOAT4(0.0f, 1.0f, 0.0f, 1.0f);
+	greenMat->FresnelR0 = XMFLOAT3(0.88725f, 0.88725f, 0.88725f);
+	greenMat->Roughness = 0.1f;
+	mMaterials[greenMat->Name] = std::move(greenMat);
+
+	auto blueMat = std::make_unique<Material>();
+	blueMat->Name = "blue";
+	blueMat->MatSBIndex = count++;
+	blueMat->DiffuseAlbedo = XMFLOAT4(0.0f, 0.0f, 1.0f, 1.0f);
+	blueMat->FresnelR0 = XMFLOAT3(0.88725f, 0.88725f, 0.88725f);
+	blueMat->Roughness = 0.1f;
+	mMaterials[blueMat->Name] = std::move(blueMat);
 
 	return true;
 }
@@ -518,17 +544,16 @@ bool Renderer::BuildResources() {
 
 bool Renderer::BuildRootSignatures() {
 	//
-	// For rasterization.
+	// Rasterization
 	//
+	// For default
 	{
 		CD3DX12_ROOT_PARAMETER slotRootParameter[static_cast<int>(ERasterRootSignatureParams::Count)];
 
-		CD3DX12_DESCRIPTOR_RANGE uavTable;
-		uavTable.Init(D3D12_DESCRIPTOR_RANGE_TYPE_UAV, 1, 0);
-
-		slotRootParameter[static_cast<int>(ERasterRootSignatureParams::EObjectCB)].InitAsConstantBufferView(0);
-		slotRootParameter[static_cast<int>(ERasterRootSignatureParams::EPassCB)].InitAsConstantBufferView(1);
-		slotRootParameter[static_cast<int>(ERasterRootSignatureParams::EMatCB)].InitAsConstantBufferView(2);
+		slotRootParameter[static_cast<int>(ERasterRootSignatureParams::EPassCB)].InitAsConstantBufferView(0);
+		slotRootParameter[static_cast<int>(ERasterRootSignatureParams::EConsts)].InitAsConstants(static_cast<UINT>(ERasterRootConstantsLayout::Count), 1);
+		slotRootParameter[static_cast<int>(ERasterRootSignatureParams::EObjSB)].InitAsShaderResourceView(0, 1);
+		slotRootParameter[static_cast<int>(ERasterRootSignatureParams::EMatSB)].InitAsShaderResourceView(0, 2);
 
 		auto samplers = GetStaticSamplers();
 
@@ -539,9 +564,7 @@ bool Renderer::BuildRootSignatures() {
 
 		CheckIsValid(D3D12Util::CreateRootSignature(md3dDevice.Get(), rootSigDesc, mRootSignatures["raster"].GetAddressOf()));
 	}
-	//
-	// For debug.
-	//
+	// For debug
 	{
 		CD3DX12_ROOT_PARAMETER slotRootParameter[static_cast<int>(EDebugRootSignatureParams::Count)];
 
@@ -555,6 +578,34 @@ bool Renderer::BuildRootSignatures() {
 			D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT);
 
 		CheckIsValid(D3D12Util::CreateRootSignature(md3dDevice.Get(), rootSigDesc, mRootSignatures["debug"].GetAddressOf()));
+	}
+	//
+	// Raytracing
+	//
+	// Global root signature
+	{
+		CD3DX12_DESCRIPTOR_RANGE ranges[3];
+		ranges[0].Init(D3D12_DESCRIPTOR_RANGE_TYPE_UAV, 1, 0); // 1 output texture
+		ranges[1].Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 64, 0, 1); // 1 vertex buffers
+		ranges[2].Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 64, 0, 2); // 1 index buffers
+
+		CD3DX12_ROOT_PARAMETER params[static_cast<int>(EGlobalRootSignatureParams::Count)];
+		params[static_cast<int>(EGlobalRootSignatureParams::EOutput)].InitAsDescriptorTable(1, &ranges[0]);
+		params[static_cast<int>(EGlobalRootSignatureParams::EAccelerationStructure)].InitAsShaderResourceView(0);
+		params[static_cast<int>(EGlobalRootSignatureParams::EPassCB)].InitAsConstantBufferView(0);
+		params[static_cast<int>(EGlobalRootSignatureParams::EObjSB)].InitAsShaderResourceView(1);
+		params[static_cast<int>(EGlobalRootSignatureParams::EMatSB)].InitAsShaderResourceView(2);
+		params[static_cast<int>(EGlobalRootSignatureParams::EVertices)].InitAsDescriptorTable(1, &ranges[1]);
+		params[static_cast<int>(EGlobalRootSignatureParams::EIndices)].InitAsDescriptorTable(1, &ranges[2]);
+
+		CD3DX12_ROOT_SIGNATURE_DESC globalRootSignatureDesc(_countof(params), params);
+		CheckIsValid(D3D12Util::CreateRootSignature(md3dDevice.Get(), globalRootSignatureDesc, mRootSignatures["dxr_global"].GetAddressOf()));
+	}
+	// Local root signature
+	{
+		CD3DX12_ROOT_SIGNATURE_DESC localRootSignatureDesc(0, nullptr);
+		localRootSignatureDesc.Flags = D3D12_ROOT_SIGNATURE_FLAG_LOCAL_ROOT_SIGNATURE;
+		CheckIsValid(D3D12Util::CreateRootSignature(md3dDevice.Get(), localRootSignatureDesc, mRootSignatures["dxr_local"].GetAddressOf()));
 	}
 
 	return true;
@@ -703,14 +754,40 @@ bool Renderer::BuildPSOs() {
 }
 
 bool Renderer::BuildRenderItems() {
-	static UINT index = 0;
+	UINT count = 0;
 
 	{
 		auto sphereRitem = std::make_unique<RenderItem>();
-		sphereRitem->World = MathHelper::Identity4x4();
-		sphereRitem->ObjCBIndex = index++;
+		XMStoreFloat4x4(&sphereRitem->World, XMMatrixTranslation(0.0f, 1.75f, 0.0f));
+		sphereRitem->ObjSBIndex = count++;
 		sphereRitem->Geo = mGeometries["sphere"].get();
-		sphereRitem->Mat = mMaterials["defaultMat"].get();
+		sphereRitem->Mat = mMaterials["red"].get();
+		sphereRitem->PrimitiveType = D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
+		sphereRitem->IndexCount = sphereRitem->Geo->DrawArgs["sphere"].IndexCount;
+		sphereRitem->StartIndexLocation = sphereRitem->Geo->DrawArgs["sphere"].StartIndexLocation;
+		sphereRitem->BaseVertexLocation = sphereRitem->Geo->DrawArgs["sphere"].BaseVertexLocation;
+		mRitems[ERenderTypes::EOpaque].push_back(sphereRitem.get());
+		mAllRitems.push_back(std::move(sphereRitem));
+	}
+	{
+		auto sphereRitem = std::make_unique<RenderItem>();
+		XMStoreFloat4x4(&sphereRitem->World, XMMatrixTranslation(1.75f, 0.0f, 0.0f));
+		sphereRitem->ObjSBIndex = count++;
+		sphereRitem->Geo = mGeometries["sphere"].get();
+		sphereRitem->Mat = mMaterials["green"].get();
+		sphereRitem->PrimitiveType = D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
+		sphereRitem->IndexCount = sphereRitem->Geo->DrawArgs["sphere"].IndexCount;
+		sphereRitem->StartIndexLocation = sphereRitem->Geo->DrawArgs["sphere"].StartIndexLocation;
+		sphereRitem->BaseVertexLocation = sphereRitem->Geo->DrawArgs["sphere"].BaseVertexLocation;
+		mRitems[ERenderTypes::EOpaque].push_back(sphereRitem.get());
+		mAllRitems.push_back(std::move(sphereRitem));
+	}
+	{
+		auto sphereRitem = std::make_unique<RenderItem>();
+		XMStoreFloat4x4(&sphereRitem->World, XMMatrixTranslation(-1.75f, 0.0f, 0.0f));
+		sphereRitem->ObjSBIndex = count++;
+		sphereRitem->Geo = mGeometries["sphere"].get();
+		sphereRitem->Mat = mMaterials["blue"].get();
 		sphereRitem->PrimitiveType = D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
 		sphereRitem->IndexCount = sphereRitem->Geo->DrawArgs["sphere"].IndexCount;
 		sphereRitem->StartIndexLocation = sphereRitem->Geo->DrawArgs["sphere"].StartIndexLocation;
@@ -721,50 +798,15 @@ bool Renderer::BuildRenderItems() {
 	{
 		auto gridRitem = std::make_unique<RenderItem>();
 		XMStoreFloat4x4(&gridRitem->World, XMMatrixTranslation(0.0f, -1.25f, 0.0f));
-		gridRitem->ObjCBIndex = index++;
+		gridRitem->ObjSBIndex = count++;
 		gridRitem->Geo = mGeometries["grid"].get();
-		gridRitem->Mat = mMaterials["defaultMat"].get();
+		gridRitem->Mat = mMaterials["white"].get();
 		gridRitem->PrimitiveType = D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
 		gridRitem->IndexCount = gridRitem->Geo->DrawArgs["grid"].IndexCount;
 		gridRitem->StartIndexLocation = gridRitem->Geo->DrawArgs["grid"].StartIndexLocation;
 		gridRitem->BaseVertexLocation = gridRitem->Geo->DrawArgs["grid"].BaseVertexLocation;
 		mRitems[ERenderTypes::EOpaque].push_back(gridRitem.get());
 		mAllRitems.push_back(std::move(gridRitem));
-	}
-
-	return true;
-}
-
-bool Renderer::BuildDXRRootSignatures() {
-	//
-	// Global root signature
-	//
-	{
-		CD3DX12_DESCRIPTOR_RANGE ranges[3];
-		ranges[0].Init(D3D12_DESCRIPTOR_RANGE_TYPE_UAV, 1, 0); // 1 output texture
-		ranges[1].Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 64, 0, 1); // 1 vertex buffers
-		ranges[2].Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 64, 0, 2); // 1 index buffers
-
-		CD3DX12_ROOT_PARAMETER params[static_cast<int>(EGlobalRootSignatureParams::Count)];
-		params[static_cast<int>(EGlobalRootSignatureParams::EOutput)].InitAsDescriptorTable(1, &ranges[0]);
-		params[static_cast<int>(EGlobalRootSignatureParams::EAccelerationStructure)].InitAsShaderResourceView(0);
-		params[static_cast<int>(EGlobalRootSignatureParams::EPassCB)].InitAsConstantBufferView(0);
-		params[static_cast<int>(EGlobalRootSignatureParams::EVertices)].InitAsDescriptorTable(1, &ranges[1]);
-		params[static_cast<int>(EGlobalRootSignatureParams::EIndices)].InitAsDescriptorTable(1, &ranges[2]);
-
-		CD3DX12_ROOT_SIGNATURE_DESC globalRootSignatureDesc(_countof(params), params);
-		CheckIsValid(D3D12Util::CreateRootSignature(md3dDevice.Get(), globalRootSignatureDesc, mRootSignatures["dxr_global"].GetAddressOf()));
-	}
-	//
-	// Local root signature
-	//
-	{
-		CD3DX12_ROOT_PARAMETER params[static_cast<int>(ELocalRootSignatureParams::Count)];
-		params[static_cast<int>(ELocalRootSignatureParams::EMatCB)].InitAsConstantBufferView(1);
-
-		CD3DX12_ROOT_SIGNATURE_DESC localRootSignatureDesc(_countof(params), params);
-		localRootSignatureDesc.Flags = D3D12_ROOT_SIGNATURE_FLAG_LOCAL_ROOT_SIGNATURE;
-		CheckIsValid(D3D12Util::CreateRootSignature(md3dDevice.Get(), localRootSignatureDesc, mRootSignatures["dxr_local"].GetAddressOf()));
 	}
 
 	return true;
@@ -847,17 +889,40 @@ bool Renderer::BuildTLAS() {
 	// Describe the TLAS geometry instance(s)
 	{
 		D3D12_RAYTRACING_INSTANCE_DESC instanceDesc = {};
-		instanceDesc.InstanceID = 0;
+		instanceDesc.InstanceID = instanceDescs.size();
 		instanceDesc.InstanceContributionToHitGroupIndex = 0;
 		instanceDesc.InstanceMask = 0xFF;
 		instanceDesc.Transform[0][0] = instanceDesc.Transform[1][1] = instanceDesc.Transform[2][2] = 1.0f;
+		instanceDesc.Transform[1][3] = 1.75f;
 		instanceDesc.AccelerationStructure = mBLASs["sphere"]->Result->GetGPUVirtualAddress();
 		instanceDesc.Flags = D3D12_RAYTRACING_INSTANCE_FLAG_TRIANGLE_FRONT_COUNTERCLOCKWISE;
 		instanceDescs.push_back(instanceDesc);
 	}
 	{
 		D3D12_RAYTRACING_INSTANCE_DESC instanceDesc = {};
-		instanceDesc.InstanceID = 1;
+		instanceDesc.InstanceID = instanceDescs.size();
+		instanceDesc.InstanceContributionToHitGroupIndex = 0;
+		instanceDesc.InstanceMask = 0xFF;
+		instanceDesc.Transform[0][0] = instanceDesc.Transform[1][1] = instanceDesc.Transform[2][2] = 1.0f;
+		instanceDesc.Transform[0][3] = 1.75f;
+		instanceDesc.AccelerationStructure = mBLASs["sphere"]->Result->GetGPUVirtualAddress();
+		instanceDesc.Flags = D3D12_RAYTRACING_INSTANCE_FLAG_TRIANGLE_FRONT_COUNTERCLOCKWISE;
+		instanceDescs.push_back(instanceDesc);
+	}
+	{
+		D3D12_RAYTRACING_INSTANCE_DESC instanceDesc = {};
+		instanceDesc.InstanceID = instanceDescs.size();
+		instanceDesc.InstanceContributionToHitGroupIndex = 0;
+		instanceDesc.InstanceMask = 0xFF;
+		instanceDesc.Transform[0][0] = instanceDesc.Transform[1][1] = instanceDesc.Transform[2][2] = 1.0f;
+		instanceDesc.Transform[0][3] = -1.75f;
+		instanceDesc.AccelerationStructure = mBLASs["sphere"]->Result->GetGPUVirtualAddress();
+		instanceDesc.Flags = D3D12_RAYTRACING_INSTANCE_FLAG_TRIANGLE_FRONT_COUNTERCLOCKWISE;
+		instanceDescs.push_back(instanceDesc);
+	}
+	{
+		D3D12_RAYTRACING_INSTANCE_DESC instanceDesc = {};
+		instanceDesc.InstanceID = instanceDescs.size();
 		instanceDesc.InstanceContributionToHitGroupIndex = 0;
 		instanceDesc.InstanceMask = 0xFF;
 		instanceDesc.Transform[0][0] = instanceDesc.Transform[1][1] = instanceDesc.Transform[2][2] = 1.0f;
@@ -1001,29 +1066,26 @@ bool Renderer::BuildShaderTables() {
 	missShaderTable.push_back(ShaderRecord(missShaderIdentifier, shaderIdentifierSize));
 	mShaderTables["miss"] = missShaderTable.GetResource();
 
-	for (int i = 0; i < gNumFrameResources; ++i) {
-		// Hit group shader table
-		ShaderTable hitGroupTable(md3dDevice.Get(), 1, shaderIdentifierSize);
-		CheckIsValid(hitGroupTable.Initialze());
-		{
-			struct RootArguments {
-				D3D12_GPU_VIRTUAL_ADDRESS MatCB;
-			} rootArguments;
+	// Hit group shader table
+	ShaderTable hitGroupTable(md3dDevice.Get(), 1, shaderIdentifierSize);
+	CheckIsValid(hitGroupTable.Initialze());
+	{
+		//struct RootArguments {
+		//	D3D12_GPU_VIRTUAL_ADDRESS MatCB;
+		//} rootArguments;
+		//
+		//rootArguments.MatCB = mFrameResources[i]->MaterialCB.Resource()->GetGPUVirtualAddress();
 
-			rootArguments.MatCB = mFrameResources[i]->MaterialCB.Resource()->GetGPUVirtualAddress();
-
-			hitGroupTable.push_back(ShaderRecord(hitGroupShaderIdentifier, shaderIdentifierSize, &rootArguments, 8));
-		}
-		std::stringstream sstream;
-		sstream << "hitGroup_" << i;
-		mShaderTables[sstream.str().c_str()] = hitGroupTable.GetResource();
+		hitGroupTable.push_back(ShaderRecord(hitGroupShaderIdentifier, shaderIdentifierSize));
 	}
+	mShaderTables["hitGroup"] = hitGroupTable.GetResource();
 
 	return true;
 }
 
 bool Renderer::UpdateObjectCB(const GameTimer& gt) {
-	auto& currObjectCB = mCurrFrameResource->ObjectCB;
+	auto& currObjectSB = mCurrFrameResource->ObjectSB;
+
 	for (auto& e : mAllRitems) {
 		// Only update the cbuffer data if the constants have changed.  
 		// This needs to be tracked per frame resource.
@@ -1031,11 +1093,13 @@ bool Renderer::UpdateObjectCB(const GameTimer& gt) {
 			XMMATRIX world = XMLoadFloat4x4(&e->World);
 			XMMATRIX texTransform = XMLoadFloat4x4(&e->TexTransform);
 
-			ObjectConstants objConstants;
-			XMStoreFloat4x4(&objConstants.World, XMMatrixTranspose(world));
-			XMStoreFloat4x4(&objConstants.TexTransform, XMMatrixTranspose(texTransform));
+			ObjectData objData;
+			XMStoreFloat4x4(&objData.World, XMMatrixTranspose(world));
+			XMStoreFloat4x4(&objData.TexTransform, XMMatrixTranspose(texTransform));
+			objData.GeometryIndex = e->Geo->GeometryIndex;
+			objData.MaterialIndex = e->Mat->MatSBIndex;
 
-			currObjectCB.CopyData(e->ObjCBIndex, objConstants);
+			currObjectSB.CopyData(e->ObjSBIndex, objData);
 
 			// Next FrameResource need to be updated too.
 			e->NumFramesDirty--;
@@ -1072,7 +1136,7 @@ bool Renderer::UpdatePassCB(const GameTimer& gt) {
 }
 
 bool Renderer::UpdateMaterialCB(const GameTimer& gt) {
-	auto& currMaterialCB = mCurrFrameResource->MaterialCB;
+	auto& currMaterialSB = mCurrFrameResource->MaterialSB;
 	for (auto& e : mMaterials) {
 		// Only update the cbuffer data if the constants have changed.  If the cbuffer
 		// data changes, it needs to be updated for each FrameResource.
@@ -1080,13 +1144,13 @@ bool Renderer::UpdateMaterialCB(const GameTimer& gt) {
 		if (mat->NumFramesDirty > 0) {
 			XMMATRIX matTransform = XMLoadFloat4x4(&mat->MatTransform);
 
-			MaterialConstants matConsts;
-			matConsts.DiffuseAlbedo = mat->DiffuseAlbedo;
-			matConsts.FresnelR0 = mat->FresnelR0;
-			matConsts.Roughness = mat->Roughness;
-			XMStoreFloat4x4(&matConsts.MatTransform, XMMatrixTranspose(matTransform));
+			MaterialData matData;
+			matData.DiffuseAlbedo = mat->DiffuseAlbedo;
+			matData.FresnelR0 = mat->FresnelR0;
+			matData.Roughness = mat->Roughness;
+			XMStoreFloat4x4(&matData.MatTransform, XMMatrixTranspose(matTransform));
 
-			currMaterialCB.CopyData(mat->MatCBIndex, matConsts);
+			currMaterialSB.CopyData(mat->MatSBIndex, matData);
 
 			// Next FrameResource need to be updated too.
 			mat->NumFramesDirty--;
@@ -1141,8 +1205,14 @@ bool Renderer::Rasterize() {
 		nullptr
 	);
 
-	const auto& passCB = mCurrFrameResource->PassCB;
-	mCommandList->SetGraphicsRootConstantBufferView(static_cast<UINT>(ERasterRootSignatureParams::EPassCB), passCB.Resource()->GetGPUVirtualAddress());
+	const auto& passCBAddress = mCurrFrameResource->PassCB.Resource()->GetGPUVirtualAddress();
+	mCommandList->SetGraphicsRootConstantBufferView(static_cast<UINT>(ERasterRootSignatureParams::EPassCB), passCBAddress);
+
+	const auto& objSBAddress = mCurrFrameResource->ObjectSB.Resource()->GetGPUVirtualAddress();
+	mCommandList->SetGraphicsRootShaderResourceView(static_cast<UINT>(ERasterRootSignatureParams::EObjSB), objSBAddress);
+
+	const auto& matSBAddress = mCurrFrameResource->MaterialSB.Resource()->GetGPUVirtualAddress();
+	mCommandList->SetGraphicsRootShaderResourceView(static_cast<UINT>(ERasterRootSignatureParams::EMatSB), matSBAddress);
 
 	CheckIsValid(DrawRenderItems(mRitems[ERenderTypes::EOpaque]));
 
@@ -1166,15 +1236,22 @@ bool Renderer::Raytrace() {
 
 	mCommandList->SetComputeRootSignature(mRootSignatures["dxr_global"].Get());
 
-	auto& passCB = mCurrFrameResource->PassCB;
-	mCommandList->SetComputeRootConstantBufferView(static_cast<UINT>(EGlobalRootSignatureParams::EPassCB), passCB.Resource()->GetGPUVirtualAddress());
-	mCommandList->SetComputeRootShaderResourceView(static_cast<UINT>(EGlobalRootSignatureParams::EAccelerationStructure), mTLAS->Result->GetGPUVirtualAddress());
-
 	const auto pDescHeap = mDescriptorHeap.Get();
 	ID3D12DescriptorHeap* descriptorHeaps[] = { pDescHeap };
 	mCommandList->SetDescriptorHeaps(_countof(descriptorHeaps), descriptorHeaps);
 
 	UINT cbvSrvUavDescriptorSize = GetCbvSrvUavDescriptorSize();
+
+	mCommandList->SetComputeRootShaderResourceView(static_cast<UINT>(EGlobalRootSignatureParams::EAccelerationStructure), mTLAS->Result->GetGPUVirtualAddress());
+
+	const auto& passCBAddress = mCurrFrameResource->PassCB.Resource()->GetGPUVirtualAddress();
+	mCommandList->SetComputeRootConstantBufferView(static_cast<UINT>(EGlobalRootSignatureParams::EPassCB), passCBAddress);
+
+	const auto& objSBAddress = mCurrFrameResource->ObjectSB.Resource()->GetGPUVirtualAddress();
+	mCommandList->SetComputeRootShaderResourceView(static_cast<UINT>(EGlobalRootSignatureParams::EObjSB), objSBAddress);
+
+	const auto& matSBAddress = mCurrFrameResource->MaterialSB.Resource()->GetGPUVirtualAddress();
+	mCommandList->SetComputeRootShaderResourceView(static_cast<UINT>(EGlobalRootSignatureParams::EMatSB), matSBAddress);
 
 	mCommandList->SetComputeRootDescriptorTable(
 		static_cast<UINT>(EGlobalRootSignatureParams::EOutput),
@@ -1188,14 +1265,11 @@ bool Renderer::Raytrace() {
 		static_cast<UINT>(EGlobalRootSignatureParams::EIndices),
 		D3D12Util::GetGpuHandle(pDescHeap, static_cast<INT>(EDescriptors::ES_Indices), cbvSrvUavDescriptorSize)
 	);
-
-	std::stringstream sstream;
-	sstream << "hitGroup_" << mCurrFrameResourceIndex;
-
+	
 	D3D12_DISPATCH_RAYS_DESC dispatchDesc = {};
-	const auto& hitGroup = mShaderTables[sstream.str().c_str()];
-	const auto& miss = mShaderTables["miss"];
 	const auto& rayGen = mShaderTables["rayGen"];
+	const auto& miss = mShaderTables["miss"];
+	const auto& hitGroup = mShaderTables["hitGroup"];
 	dispatchDesc.RayGenerationShaderRecord.StartAddress = rayGen->GetGPUVirtualAddress();
 	dispatchDesc.RayGenerationShaderRecord.SizeInBytes = rayGen->GetDesc().Width;
 	dispatchDesc.MissShaderTable.StartAddress = miss->GetGPUVirtualAddress();
@@ -1349,13 +1423,7 @@ bool Renderer::DrawImGui() {
 	return true;
 }
 
-bool Renderer::DrawRenderItems(const std::vector<RenderItem*>& ritems) {
-	UINT objCBByteSize = D3D12Util::CalcConstantBufferByteSize(sizeof(ObjectConstants));
-	UINT matCBByteSize = D3D12Util::CalcConstantBufferByteSize(sizeof(MaterialConstants));
-
-	auto& objectCB = mCurrFrameResource->ObjectCB;
-	auto& matCB = mCurrFrameResource->MaterialCB;
-
+bool Renderer::DrawRenderItems(const std::vector<RenderItem*>& ritems) { 
 	// For each render item...
 	for (size_t i = 0; i < ritems.size(); ++i) {
 		auto& ri = ritems[i];
@@ -1364,11 +1432,7 @@ bool Renderer::DrawRenderItems(const std::vector<RenderItem*>& ritems) {
 		mCommandList->IASetIndexBuffer(&ri->Geo->IndexBufferView());
 		mCommandList->IASetPrimitiveTopology(ri->PrimitiveType);
 
-		D3D12_GPU_VIRTUAL_ADDRESS objCBAddress = objectCB.Resource()->GetGPUVirtualAddress() + ri->ObjCBIndex * objCBByteSize;
-		D3D12_GPU_VIRTUAL_ADDRESS matCBAddress = matCB.Resource()->GetGPUVirtualAddress() + ri->Mat->MatCBIndex * matCBByteSize;
-
-		mCommandList->SetGraphicsRootConstantBufferView(static_cast<UINT>(ERasterRootSignatureParams::EObjectCB), objCBAddress);
-		mCommandList->SetGraphicsRootConstantBufferView(static_cast<UINT>(ERasterRootSignatureParams::EMatCB), matCBAddress);
+		mCommandList->SetGraphicsRoot32BitConstant(static_cast<UINT>(ERasterRootSignatureParams::EConsts), ri->ObjSBIndex, 0);
 
 		mCommandList->DrawIndexedInstanced(ri->IndexCount, 1, ri->StartIndexLocation, ri->BaseVertexLocation, 0);
 	}

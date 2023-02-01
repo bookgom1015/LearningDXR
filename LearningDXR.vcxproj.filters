@@ -111,6 +111,33 @@
       <Filter>Header Files\Util</Filter>
     </None>
     <None Include=".gitignore" />
+    <None Include="assets\shaders\Common.hlsli">
+      <Filter>Shader Files\Raster</Filter>
+    </None>
+    <None Include="assets\shaders\Default.hlsl">
+      <Filter>Shader Files\Raster</Filter>
+    </None>
+    <None Include="assets\shaders\ClosestHit.hlsl">
+      <Filter>Shader Files\Raytrace</Filter>
+    </None>
+    <None Include="assets\shaders\DxrCommon.hlsli">
+      <Filter>Shader Files\Raytrace</Filter>
+    </None>
+    <None Include="assets\shaders\Miss.hlsl">
+      <Filter>Shader Files\Raytrace</Filter>
+    </None>
+    <None Include="assets\shaders\RayGen.hlsl">
+      <Filter>Shader Files\Raytrace</Filter>
+    </None>
+    <None Include="assets\shaders\Gizmo.hlsl">
+      <Filter>Shader Files\Raster</Filter>
+    </None>
+    <None Include="assets\shaders\Samplers.hlsli">
+      <Filter>Shader Files\Raster</Filter>
+    </None>
+    <None Include="assets\shaders\LightingUtil.hlsli">
+      <Filter>Shader Files</Filter>
+    </None>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="src\Application.cpp">
@@ -178,35 +205,6 @@
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
-    <FxCompile Include="assets\shaders\ClosestHit.hlsl">
-      <Filter>Shader Files\Raytrace</Filter>
-    </FxCompile>
-    <FxCompile Include="assets\shaders\Miss.hlsl">
-      <Filter>Shader Files\Raytrace</Filter>
-    </FxCompile>
-    <FxCompile Include="assets\shaders\RayGen.hlsl">
-      <Filter>Shader Files\Raytrace</Filter>
-    </FxCompile>
-    <FxCompile Include="assets\shaders\Common.hlsl">
-      <Filter>Shader Files\Raster</Filter>
-    </FxCompile>
-    <FxCompile Include="assets\shaders\Default.hlsl">
-      <Filter>Shader Files\Raster</Filter>
-    </FxCompile>
-    <FxCompile Include="assets\shaders\Gizmo.hlsl">
-      <Filter>Shader Files\Raster</Filter>
-    </FxCompile>
-    <FxCompile Include="assets\shaders\LightingUtil.hlsl">
-      <Filter>Shader Files\Raster</Filter>
-    </FxCompile>
-    <FxCompile Include="assets\shaders\Samplers.hlsl">
-      <Filter>Shader Files\Raster</Filter>
-    </FxCompile>
-    <FxCompile Include="assets\shaders\SampleToBackBuffer.hlsl">
-      <Filter>Shader Files\Raster</Filter>
-    </FxCompile>
-    <FxCompile Include="assets\shaders\RTXCommon.hlsl">
-      <Filter>Shader Files\Raytrace</Filter>
-    </FxCompile>
+    <Text Include="note.txt" />
   </ItemGroup>
 </Project>

@@ -39,7 +39,7 @@ struct RenderItem {
 	int NumFramesDirty = gNumFrameResources;
 
 	// Index into GPU constant buffer corresponding to the ObjectCB for this render item.
-	UINT ObjCBIndex = -1;
+	UINT ObjSBIndex = -1;
 
 	Material* Mat = nullptr;
 	MeshGeometry* Geo = nullptr;
@@ -54,6 +54,8 @@ struct RenderItem {
 };
 
 const int gNumGeometryBuffers = 64;
+const int gNumObjects = 32;
+const int gNumMaterials = 32;
 
 enum class ERenderTypes {
 	EOpaque = 0,
@@ -62,9 +64,15 @@ enum class ERenderTypes {
 };
 
 enum class ERasterRootSignatureParams {
-	EObjectCB = 0,
-	EPassCB,
-	EMatCB,
+	EPassCB = 0,
+	EConsts,
+	EObjSB,
+	EMatSB,
+	Count
+};
+
+enum class ERasterRootConstantsLayout {
+	EInstanceID = 0,
 	Count
 };
 
@@ -77,14 +85,15 @@ enum class EGlobalRootSignatureParams {
 	EOutput = 0,
 	EAccelerationStructure,
 	EPassCB,
+	EObjSB,
+	EMatSB,
 	EVertices,
 	EIndices,
 	Count
 };
 
 enum class ELocalRootSignatureParams {
-	EMatCB = 0,
-	Count
+	Count = 0
 };
 
 enum class EDescriptors {
@@ -138,16 +147,15 @@ protected:
 	bool BuildGeometries();
 	bool BuildMaterials();
 	bool BuildResources();
+	bool BuildRootSignatures();
 	bool BuildDescriptorHeaps();
 	bool BuildDescriptors();
 
 	// Raterization
-	bool BuildRootSignatures();
 	bool BuildPSOs();
 	bool BuildRenderItems();
 
 	// Raytracing
-	bool BuildDXRRootSignatures();
 	bool BuildBLAS();
 	bool BuildTLAS();
 	bool BuildDXRPSOs();

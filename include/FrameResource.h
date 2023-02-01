@@ -15,9 +15,11 @@ struct Light {
 	float SpotPower				= 64.0f;					// spot light only
 };
 
-struct ObjectConstants {
+struct ObjectData {
 	DirectX::XMFLOAT4X4 World;
 	DirectX::XMFLOAT4X4 TexTransform;
+	UINT				GeometryIndex;
+	int					MaterialIndex;
 };
 
 struct PassConstants {
@@ -37,15 +39,11 @@ struct DebugPassConstants {
 	DirectX::XMFLOAT4X4	ViewProj;
 };
 
-struct MaterialConstants {
+struct MaterialData {
 	DirectX::XMFLOAT4	DiffuseAlbedo;
 	DirectX::XMFLOAT3	FresnelR0;
 	float				Roughness;
 	DirectX::XMFLOAT4X4	MatTransform;
-};
-
-struct DXRObjectCB {
-	DirectX::XMFLOAT4 Albedo;
 };
 
 struct FrameResource {
@@ -57,12 +55,6 @@ public:
 		UINT inMaterialCount);
 	virtual ~FrameResource() = default;
 
-private:
-	FrameResource(const FrameResource& src) = delete;
-	FrameResource(FrameResource&& src) = delete;
-	FrameResource& operator=(const FrameResource& rhs) = delete;
-	FrameResource& operator=(FrameResource&& rhs) = delete;
-
 public:
 	bool Initialize();
 
@@ -70,8 +62,8 @@ public:
 	Microsoft::WRL::ComPtr<ID3D12CommandAllocator> CmdListAlloc;
 
 	UploadBuffer<PassConstants> PassCB;
-	UploadBuffer<ObjectConstants> ObjectCB;
-	UploadBuffer<MaterialConstants> MaterialCB;
+	UploadBuffer<ObjectData> ObjectSB;
+	UploadBuffer<MaterialData> MaterialSB;
 	UploadBuffer<DebugPassConstants> DebugPassCB;
 
 	UINT64 Fence;

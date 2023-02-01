@@ -54,30 +54,37 @@ void ClosestHit(inout RayPayload payload, in Attributes attr) {
 
 	uint instID = InstanceID();
 
+	ObjectData objData = gObjects[instID];
+
 	// Load up 3 32 bit indices for the triangle.
-	const uint3 indices = Load3x32BitIndices(baseIndex, instID);
+	const uint3 indices = Load3x32BitIndices(baseIndex, objData.GeometryIndex);
 
 	// Retrieve corresponding vertex normals for the triangle vertices.
 	float3 vertexNormals[3] = {
-		gVertices[instID][indices[0]].NormalW,
-		gVertices[instID][indices[1]].NormalW,
-		gVertices[instID][indices[2]].NormalW
+		gVertices[objData.GeometryIndex][indices[0]].NormalW,
+		gVertices[objData.GeometryIndex][indices[1]].NormalW,
+		gVertices[objData.GeometryIndex][indices[2]].NormalW
 	};
 
 	// Compute the triangle's normal.
 	// This is redundant and done for illustration purposes 
 	// as all the per-vertex normals are the same and match triangle's normal in this sample. 
-	float3 triangleNormal = HitAttribute(vertexNormals, attr);
+	float3 triangleNormal = normalize(HitAttribute(vertexNormals, attr));
 
 	float3 toEyeW = normalize(gEyePosW - hitPosition);
+	
+	MaterialData matData = gMaterials[objData.MaterialIndex];
 
-	const float shiness = 1.0f - lRoughness;
-	Material mat = { lDiffuseAlbedo, lFresnelR0, shiness };
+	float4 ambient = gAmbientLight * matData.DiffuseAlbedo;
+
+	float shiness = 1.0f - matData.Roughness;
+	Material mat = { matData.DiffuseAlbedo, matData.FresnelR0, shiness };
 
 	float3 shadowFactor = 1.0f;
 	float4 directLight = ComputeLighting(gLights, mat, hitPosition, triangleNormal, toEyeW, shadowFactor);
 
-	float4 color = gAmbientLight + directLight;
+	float4 color = ambient + directLight;
+	color.a = matData.DiffuseAlbedo.a;
 	
 	payload.Color = color;
 	//payload.Color = float4(triangleNormal, 1.0f);

@@ -71,7 +71,7 @@
     <None Include="assets\shaders\Gizmo.hlsl">
       <FileType>Document</FileType>
     </None>
-    <None Include="assets\shaders\LightingUtil.hlsl">
+    <None Include="assets\shaders\LightingUtil.hlsli">
       <FileType>Document</FileType>
     </None>
     <None Include="assets\shaders\Miss.hlsl">
@@ -83,12 +83,12 @@
     <None Include="assets\shaders\DxrCommon.hlsli">
       <FileType>Document</FileType>
     </None>
-    <None Include="assets\shaders\Samplers.hlsl">
+    <None Include="assets\shaders\Samplers.hlsli">
       <FileType>Document</FileType>
     </None>
-    <None Include="assets\shaders\SampleToBackBuffer.hlsl">
-      <FileType>Document</FileType>
-    </None>
+  </ItemGroup>
+  <ItemGroup>
+    <Text Include="note.txt" />
   </ItemGroup>
   <PropertyGroup Label="Globals">
     <VCProjectVersion>15.0</VCProjectVersion>

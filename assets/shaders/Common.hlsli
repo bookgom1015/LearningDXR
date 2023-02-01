@@ -1,15 +1,24 @@
 #ifndef __COMMON_HLSLI__
 #define __COMMON_HLSLI__
 
-#include "LightingUtil.hlsl"
-#include "Samplers.hlsl"
+#include "LightingUtil.hlsli"
+#include "Samplers.hlsli"
 
-cbuffer cbPerObject : register(b0) {
-	float4x4 gWorld;
-	float4x4 gTexTransform;
+struct ObjectData {
+	float4x4	World;
+	float4x4	TexTransform;
+	uint		GeometryIndex;
+	int			MaterialIndex;
 };
 
-cbuffer cbPass : register(b1) {
+struct MaterialData {
+	float4		DiffuseAlbedo;
+	float3		FresnelR0;
+	float		Roughness;
+	float4x4	MatTransform;
+};
+
+cbuffer cbPass : register(b0) {
 	float4x4	gView;
 	float4x4	gInvView;
 	float4x4	gProj;
@@ -22,11 +31,11 @@ cbuffer cbPass : register(b1) {
 	Light		gLights[MaxLights];
 };
 
-cbuffer cbMaterial : register(b2) {
-	float4		gDiffuseAlbedo;
-	float3		gFresnelR0;
-	float		gRoughness;
-	float4x4	gMatTransform;
-};
+cbuffer cbRootConstants : register(b1) {
+	uint gInstanceID;
+}
+
+StructuredBuffer<ObjectData>	gObjects	: register(t0, space1);
+StructuredBuffer<MaterialData>	gMaterials	: register(t0, space2);
 
 #endif // __COMMON_HLSLI__

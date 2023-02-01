@@ -1,7 +1,7 @@
 #ifndef __DXRCOMMON_HLSLI__
 #define __DXRCOMMON_HLSLI__
 
-#include "LightingUtil.hlsl"
+#include "LightingUtil.hlsli"
 
 typedef BuiltInTriangleIntersectionAttributes Attributes;
 
@@ -16,11 +16,27 @@ struct Vertex {
 	float3 TangentW;
 };
 
+struct ObjectData {
+	float4x4	World;
+	float4x4	TexTransform;
+	uint		GeometryIndex;
+	int			MaterialIndex;
+};
+
+struct MaterialData {
+	float4		DiffuseAlbedo;
+	float3		FresnelR0;
+	float		Roughness;
+	float4x4	MatTransform;
+};
+
 //
 // Global root signatures
 //
 RWTexture2D<float4>				gOutput			: register(u0);
 RaytracingAccelerationStructure	gBVH			: register(t0);
+StructuredBuffer<ObjectData>	gObjects		: register(t1);
+StructuredBuffer<MaterialData>	gMaterials		: register(t2);
 StructuredBuffer<Vertex>		gVertices[64]	: register(t0, space1);
 ByteAddressBuffer				gIndices[64]	: register(t0, space2);
 
@@ -40,12 +56,7 @@ cbuffer cbPass	: register(b0) {
 //
 // Local root signatures
 //
-cbuffer cbMat : register(b1) {
-	float4		lDiffuseAlbedo;
-	float3		lFresnelR0;
-	float		lRoughness;
-	float4x4	lMatTransform;
-};
+
 
 //
 // Helper functions

@@ -45,6 +45,8 @@ struct MeshGeometry {
 	DXGI_FORMAT IndexFormat = DXGI_FORMAT_R16_UINT;
 	UINT IndexBufferByteSize = 0;
 
+	UINT GeometryIndex = 0;
+
 	// A MeshGeometry may store multiple geometries in one vertex/index buffer.
 	// Use this container to define the Submesh geometries so we can draw
 	// the Submeshes individually.
@@ -78,7 +80,7 @@ struct MeshGeometry {
 struct Material {
 	std::string Name;
 
-	int MatCBIndex = -1;
+	int MatSBIndex = -1;
 	int DiffuseSrvHeapIndex = -1;
 	int NormalSrvHeapIndex = -1;
 	int AlphaSrvHeapIndex = -1;

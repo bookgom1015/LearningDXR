@@ -23,43 +23,51 @@ struct VertexIn {
 };
 
 struct VertexOut {
-	float4 PosH		: SV_POSITION;
-	float3 PosW		: POSITION;
-	float3 NormalW	: NORMAL;
-	float2 TexC		: TEXCOORD;
-	float3 TagentW	: TANGENT;
+	float4	PosH	: SV_POSITION;
+	float3	PosW	: POSITION;
+	float3	NormalW	: NORMAL;
+	float2	TexC	: TEXCOORD;
+	float3	TagentW	: TANGENT;
 };
 
 VertexOut VS(VertexIn vin) {
 	VertexOut vout = (VertexOut)0.0f;
 
-	float4 posW = mul(float4(vin.PosL, 1.0f), gWorld);
+	ObjectData objData = gObjects[gInstanceID];
+
+	float4 posW = mul(float4(vin.PosL, 1.0f), objData.World);
 	vout.PosW = posW.xyz;
 
-	vout.NormalW = mul(vin.NormalL, (float3x3)gWorld);
+	vout.NormalW = mul(vin.NormalL, (float3x3)objData.World);
 
 	vout.PosH = mul(posW, gViewProj);
 
-	float4 texC = mul(float4(vin.TexC, 0.0f, 1.0f), gTexTransform);
-	vout.TexC = mul(texC, gMatTransform).xy;
+	MaterialData matData = gMaterials[objData.MaterialIndex];
+
+	float4 texC = mul(float4(vin.TexC, 0.0f, 1.0f), objData.TexTransform);
+	vout.TexC = mul(texC, matData.MatTransform).xy;
 
 	return vout;
 }
 
 float4 PS(VertexOut pin) : SV_Target {
+	ObjectData objData = gObjects[gInstanceID];
+	MaterialData matData = gMaterials[objData.MaterialIndex];
+
 	pin.NormalW = normalize(pin.NormalW);
 
 	float3 toEyeW = normalize(gEyePosW - pin.PosW);
 
-	float4 ambient = gAmbientLight * gDiffuseAlbedo;
+	float4 ambient = gAmbientLight * matData.DiffuseAlbedo;
 
-	const float shiness = 1.0f - gRoughness;
-	Material mat = { gDiffuseAlbedo, gFresnelR0 , shiness };
+	float shiness = 1.0f - matData.Roughness;
+	Material mat = { matData.DiffuseAlbedo, matData.FresnelR0 , shiness };
+
 	float3 shadowFactor = 1.0f;
 	float4 directLight = ComputeLighting(gLights, mat, pin.PosW, pin.NormalW, toEyeW, shadowFactor);
 
 	float4 litColor = ambient + directLight;
-	litColor.a = gDiffuseAlbedo.a;
+	litColor.a = matData.DiffuseAlbedo.a;
 
 	return litColor;
 	//return float4(pin.NormalW, 1.0f);

@@ -6,3 +6,6 @@ lib/
 
 # ignore all intermidiate files
 obj/
+
+# ingore unnecessary fils
+note.txt
