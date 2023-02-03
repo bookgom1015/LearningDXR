@@ -19,8 +19,10 @@ struct Material;
 struct FrameResource;
 struct DXRObjectCB;
 struct PassConstants;
-struct DebugPassConstants;
 struct AccelerationStructureBuffer;
+
+class ShadowMap;
+class GBuffer;
 
 struct RenderItem {
 	RenderItem() = default;
@@ -63,11 +65,12 @@ enum class ERenderTypes {
 	Count
 };
 
-enum class ERasterRootSignatureParams {
+enum class ERasterRootSignatureLayout {
 	EPassCB = 0,
 	EConsts,
 	EObjSB,
 	EMatSB,
+	EMaps,
 	Count
 };
 
@@ -76,12 +79,12 @@ enum class ERasterRootConstantsLayout {
 	Count
 };
 
-enum class EDebugRootSignatureParams {
+enum class EGizmoRootSignatureLayout {
 	EPassCB = 0,
 	Count
 };
 
-enum class EGlobalRootSignatureParams {
+enum class EGlobalRootSignatureLayout {
 	EOutput = 0,
 	EAccelerationStructure,
 	EPassCB,
@@ -92,18 +95,41 @@ enum class EGlobalRootSignatureParams {
 	Count
 };
 
-enum class ELocalRootSignatureParams {
+enum class ELocalRootSignatureLayout {
 	Count = 0
 };
 
 enum class EDescriptors {
 	ES_Vertices = 0,
 	ES_Indices	= ES_Vertices + gNumGeometryBuffers,
-	EU_Output	= ES_Indices + gNumGeometryBuffers,
+	EU_Output0	= ES_Indices + gNumGeometryBuffers,
+	EU_Output1,
+	EU_Output2,
 	ES_Font,
+	ES_Color,
+	ES_Albedo,
+	ES_Normal,
+	ES_Depth,
+	ES_Specular,
+	ES_Shadow,
 	Count
 };
 
+enum class ERtvHeapLayout {
+	EBackBuffer0 = 0,
+	EBackBuffer1,
+	EColor,
+	EAlbedo,
+	ENormal,
+	ESpecular,
+	Count
+};
+
+enum class EDsvHeapLayout {
+	EDefault = 0,
+	EShaadow,
+	Count
+};
 
 class Renderer : public LowRenderer {	
 public:
@@ -132,7 +158,7 @@ public:
 
 	__forceinline constexpr bool Initialized() const;
 
-	void ShowImGui(bool state);
+	void DisplayImGui(bool state);
 
 protected:
 	virtual bool CreateRtvAndDsvDescriptorHeaps() override;
@@ -161,23 +187,28 @@ protected:
 	bool BuildDXRPSOs();
 	bool BuildShaderTables();
 
+	// Update
 	bool UpdateObjectCB(const GameTimer& gt);
 	bool UpdatePassCB(const GameTimer& gt);
+	bool UpdateShadowPassCB(const GameTimer& gt);
 	bool UpdateMaterialCB(const GameTimer& gt);
-	bool UpdateDebugPassCB(const GameTimer& gt);
 
+	// Drawing
 	bool Rasterize();
 	bool Raytrace();
 	bool DrawDebugLayer();
 	bool DrawImGui();
-
 	bool DrawRenderItems(const std::vector<RenderItem*>& ritems);
+	bool DrawShadowMap();
+	bool DrawGBuffer();
+	bool DrawBackBuffer();
 
 private:
 	bool bIsCleanedUp;
 	bool bInitialized;
 	bool bRaytracing;
-	bool bShowImgGui;
+	bool bDisplayImgGui;
+	bool bDisplayMaps;
 
 	std::unordered_map<std::string, std::unique_ptr<MeshGeometry>> mGeometries;
 	std::unordered_map<std::string, std::unique_ptr<Material>> mMaterials;
@@ -192,7 +223,13 @@ private:
 
 	Camera* mCamera;
 
-	Microsoft::WRL::ComPtr<ID3D12DescriptorHeap> mDescriptorHeap;
+	Microsoft::WRL::ComPtr<ID3D12DescriptorHeap> mCbvSrvUavHeap;
+
+	DirectX::BoundingSphere mSceneBounds;
+	DirectX::XMFLOAT3 mLightDir;
+
+	std::unique_ptr<ShadowMap> mShadowMap;
+	std::unique_ptr<GBuffer> mGBuffer;
 
 	//
 	// Rasterization
@@ -203,7 +240,7 @@ private:
 	std::unordered_map<ERenderTypes, std::vector<RenderItem*>> mRitems;
 	
 	std::unique_ptr<PassConstants> mMainPassCB;
-	std::unique_ptr <DebugPassConstants> mDebugPassCB;
+	std::unique_ptr<PassConstants> mShadowPassCB;
 
 	D3D12_VIEWPORT mDebugViewport;
 	D3D12_RECT mDebugScissorRect;

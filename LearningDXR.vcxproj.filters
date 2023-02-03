@@ -46,6 +46,12 @@
     <Filter Include="Common Files\Private\ImGui">
       <UniqueIdentifier>{f444a1cc-a95e-4c46-9b37-8465229e4ddb}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Header Files\Shading">
+      <UniqueIdentifier>{8f96f5b5-0e13-43cd-acfc-4e9964dd5d94}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\Shading">
+      <UniqueIdentifier>{3304120b-7c6f-4730-bad2-c3b3b404b7fe}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="include\Application.h">
@@ -99,6 +105,12 @@
     <ClInclude Include="include\SBTGenerator.h">
       <Filter>Header Files\Util</Filter>
     </ClInclude>
+    <ClInclude Include="include\ShadowMap.h">
+      <Filter>Header Files\Shading</Filter>
+    </ClInclude>
+    <ClInclude Include="include\GBuffer.h">
+      <Filter>Header Files\Shading</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <None Include="include\LowRenderer.inl">
@@ -132,10 +144,22 @@
     <None Include="assets\shaders\Gizmo.hlsl">
       <Filter>Shader Files\Raster</Filter>
     </None>
-    <None Include="assets\shaders\Samplers.hlsli">
+    <None Include="assets\shaders\LightingUtil.hlsli">
+      <Filter>Shader Files</Filter>
+    </None>
+    <None Include="assets\shaders\Shadow.hlsl">
       <Filter>Shader Files\Raster</Filter>
     </None>
-    <None Include="assets\shaders\LightingUtil.hlsli">
+    <None Include="assets\shaders\GBuffer.hlsl">
+      <Filter>Shader Files\Raster</Filter>
+    </None>
+    <None Include="assets\shaders\Debug.hlsl">
+      <Filter>Shader Files\Raster</Filter>
+    </None>
+    <None Include="assets\shaders\BackBuffer.hlsl">
+      <Filter>Shader Files\Raster</Filter>
+    </None>
+    <None Include="assets\shaders\Samplers.hlsli">
       <Filter>Shader Files</Filter>
     </None>
   </ItemGroup>
@@ -202,6 +226,12 @@
     </ClCompile>
     <ClCompile Include="src\SBTGenerator.cpp">
       <Filter>Source Files\Util</Filter>
+    </ClCompile>
+    <ClCompile Include="src\ShadowMap.cpp">
+      <Filter>Source Files\Shading</Filter>
+    </ClCompile>
+    <ClCompile Include="src\GBuffer.cpp">
+      <Filter>Source Files\Shading</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>

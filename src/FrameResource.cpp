@@ -18,7 +18,6 @@ bool FrameResource::Initialize() {
 	CheckIsValid(PassCB.Initialize(Device, PassCount, true));
 	CheckIsValid(ObjectSB.Initialize(Device, ObjectCount, false));
 	CheckIsValid(MaterialSB.Initialize(Device, MaterialCount, false));
-	CheckIsValid(DebugPassCB.Initialize(Device, PassCount, true));
 
 	return true;
 }

@@ -1,9 +1,7 @@
 #ifndef __GIZMO_HLSL__
 #define __GIZMO_HLSL__
 
-cbuffer cbPass : register(b0) {
-	float4x4 gViewProj;
-};
+#include "Common.hlsli"
 
 static const float3 gVertices[6] = {
 	float3(0.0f, 0.0f, 0.0f),
@@ -24,7 +22,8 @@ VertexOut VS(uint vid : SV_VertexID, uint instanceID : SV_InstanceID) {
 
 	int index = vid + (instanceID * 2);
 	float3 posW = gVertices[index];
-	vout.PosH = mul(float4(posW, 1.0f), gViewProj);
+
+	vout.PosH = mul(float4(posW, 1.0f), gUnitViewProj);
 	vout.InstID = instanceID;
 
 	return vout;

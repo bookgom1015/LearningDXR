@@ -235,11 +235,11 @@ void Application::OnKeyboardInput(UINT msg, WPARAM wParam, LPARAM lParam) {
 		case VK_TAB:
 			if (mGameState == EGameStates::EGS_Play) {
 				mGameState = EGameStates::EGS_UI;
-				mRenderer->ShowImGui(true);
+				mRenderer->DisplayImGui(true);
 			}
 			else {
 				mGameState = EGameStates::EGS_Play;
-				mRenderer->ShowImGui(false);
+				mRenderer->DisplayImGui(false);
 			}
 			break;
 		case VK_RIGHT:

@@ -29,14 +29,13 @@ struct PassConstants {
 	DirectX::XMFLOAT4X4	InvProj;
 	DirectX::XMFLOAT4X4	ViewProj;
 	DirectX::XMFLOAT4X4	InvViewProj;
+	DirectX::XMFLOAT4X4 UnitViewProj;
+	DirectX::XMFLOAT4X4 ViewProjTex;
+	DirectX::XMFLOAT4X4 ShadowTransform;
 	DirectX::XMFLOAT3	EyePosW;
-	float				PassConstantsPad1;
+	float				PassConstantsPad0;
 	DirectX::XMFLOAT4	AmbientLight;
 	Light				Lights[MaxLights];
-};
-
-struct DebugPassConstants {
-	DirectX::XMFLOAT4X4	ViewProj;
 };
 
 struct MaterialData {
@@ -64,7 +63,6 @@ public:
 	UploadBuffer<PassConstants> PassCB;
 	UploadBuffer<ObjectData> ObjectSB;
 	UploadBuffer<MaterialData> MaterialSB;
-	UploadBuffer<DebugPassConstants> DebugPassCB;
 
 	UINT64 Fence;
 

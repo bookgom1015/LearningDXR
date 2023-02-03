@@ -11,6 +11,7 @@
 #include <DirectXColors.h>
 #include <DirectXMath.h>
 #include <DirectXPackedVector.h>
+#include <DirectXCollision.h>
 
 #include <dxgi1_6.h>
 #include <dxc/dxcapi.h>

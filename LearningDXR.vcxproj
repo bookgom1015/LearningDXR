@@ -17,6 +17,7 @@
     <ClInclude Include="include\d3dx12.h" />
     <ClInclude Include="include\FrameResource.h" />
     <ClInclude Include="include\GameTimer.h" />
+    <ClInclude Include="include\GBuffer.h" />
     <ClInclude Include="include\GeometryGenerator.h" />
     <ClInclude Include="include\Logger.h" />
     <ClInclude Include="include\LowRenderer.h" />
@@ -27,6 +28,7 @@
     <ClInclude Include="include\RTXStructures.h" />
     <ClInclude Include="include\SBTGenerator.h" />
     <ClInclude Include="include\ShaderManager.h" />
+    <ClInclude Include="include\ShadowMap.h" />
     <ClInclude Include="include\UploadBuffer.h" />
   </ItemGroup>
   <ItemGroup>
@@ -48,6 +50,7 @@
     <ClCompile Include="src\D3D12Util.cpp" />
     <ClCompile Include="src\FrameResource.cpp" />
     <ClCompile Include="src\GameTimer.cpp" />
+    <ClCompile Include="src\GBuffer.cpp" />
     <ClCompile Include="src\GeometryGenerator.cpp" />
     <ClCompile Include="src\Logger.cpp" />
     <ClCompile Include="src\LowRenderer.cpp" />
@@ -56,6 +59,7 @@
     <ClCompile Include="src\RTXStructures.cpp" />
     <ClCompile Include="src\SBTGenerator.cpp" />
     <ClCompile Include="src\ShaderManager.cpp" />
+    <ClCompile Include="src\ShadowMap.cpp" />
     <ClCompile Include="src\UploadBuffer.cpp" />
   </ItemGroup>
   <ItemGroup>
@@ -89,6 +93,26 @@
   </ItemGroup>
   <ItemGroup>
     <Text Include="note.txt" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="assets\shaders\Shadow.hlsl">
+      <FileType>Document</FileType>
+    </None>
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="assets\shaders\GBuffer.hlsl">
+      <FileType>Document</FileType>
+    </None>
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="assets\shaders\Debug.hlsl">
+      <FileType>Document</FileType>
+    </None>
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="assets\shaders\BackBuffer.hlsl">
+      <FileType>Document</FileType>
+    </None>
   </ItemGroup>
   <PropertyGroup Label="Globals">
     <VCProjectVersion>15.0</VCProjectVersion>
