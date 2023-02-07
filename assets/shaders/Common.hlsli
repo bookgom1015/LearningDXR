@@ -36,17 +36,19 @@ cbuffer cbPass : register(b0) {
 
 cbuffer cbRootConstants : register(b1) {
 	uint gInstanceID;
+	bool gIsRaytracing;
 }
 
-StructuredBuffer<ObjectData>	gObjects	: register(t0, space1);
-StructuredBuffer<MaterialData>	gMaterials	: register(t0, space2);
+StructuredBuffer<ObjectData> gObjects		: register(t0, space1);
+StructuredBuffer<MaterialData> gMaterials	: register(t0, space2);
 
-Texture2D gColorMap		: register(t0);
-Texture2D gAlbedoMap	: register(t1);
-Texture2D gNormalMap	: register(t2);
-Texture2D gDepthMap		: register(t3);
-Texture2D gSpecularMap	: register(t4);
-Texture2D gShadowMap	: register(t5);
+Texture2D gColorMap							: register(t0);
+Texture2D gAlbedoMap						: register(t1);
+Texture2D gNormalMap						: register(t2);
+Texture2D gDepthMap							: register(t3);
+Texture2D gSpecularMap						: register(t4);
+Texture2D gShadowMap						: register(t5);
+Texture2D gDxrShadowMap						: register(t6);
 
 float CalcShadowFactor(float4 shadowPosH) {
 	shadowPosH.xyz /= shadowPosH.w;

@@ -2,11 +2,16 @@
 #define __DXRCOMMON_HLSLI__
 
 #include "LightingUtil.hlsli"
+#include "Samplers.hlsli"
 
 typedef BuiltInTriangleIntersectionAttributes Attributes;
 
-struct RayPayload {
+struct HitInfo {
 	float4 Color;
+};
+
+struct ShadowHitInfo {
+	bool IsHit;
 };
 
 struct Vertex {
@@ -33,12 +38,24 @@ struct MaterialData {
 //
 // Global root signatures
 //
-RWTexture2D<float4>				gOutput			: register(u0);
-RaytracingAccelerationStructure	gBVH			: register(t0);
-StructuredBuffer<ObjectData>	gObjects		: register(t1);
-StructuredBuffer<MaterialData>	gMaterials		: register(t2);
-StructuredBuffer<Vertex>		gVertices[64]	: register(t0, space1);
-ByteAddressBuffer				gIndices[64]	: register(t0, space2);
+RWTexture2D<float4> gOutput					: register(u0);
+
+RWTexture2D<float4> gShadowMap				: register(u0, space2);
+
+RaytracingAccelerationStructure	gBVH		: register(t0);
+StructuredBuffer<ObjectData> gObjects		: register(t1);
+StructuredBuffer<MaterialData> gMaterials	: register(t2);
+
+StructuredBuffer<Vertex> gVertices[64]		: register(t0, space1);
+
+ByteAddressBuffer gIndices[64]				: register(t0, space2);
+
+Texture2D gColorMap							: register(t0, space3);
+Texture2D gAlbedoMap						: register(t1, space3);
+Texture2D gNormalMap						: register(t2, space3);
+Texture2D gDepthMap							: register(t3, space3);
+Texture2D gSpecularMap						: register(t4, space3);
+
 
 cbuffer cbPass	: register(b0) {
 	float4x4	gView;
@@ -95,6 +112,12 @@ inline void GenerateCameraRay(uint2 index, out float3 origin, out float3 directi
 	world.xyz /= world.w;
 	origin = gEyePosW;
 	direction = normalize(world.xyz - origin);
+}
+
+float NdcDepthToViewDepth(float z_ndc) {
+	// z_ndc = A + B/viewZ, where gProj[2,2]=A and gProj[3,2]=B.
+	float viewZ = gProj[3][2] / (z_ndc - gProj[2][2]);
+	return viewZ;
 }
 
 #endif // __DXRCOMMON_HLSLI__

@@ -111,6 +111,9 @@
     <ClInclude Include="include\GBuffer.h">
       <Filter>Header Files\Shading</Filter>
     </ClInclude>
+    <ClInclude Include="include\DxrShadowMap.h">
+      <Filter>Header Files\Shading</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <None Include="include\LowRenderer.inl">
@@ -161,6 +164,12 @@
     </None>
     <None Include="assets\shaders\Samplers.hlsli">
       <Filter>Shader Files</Filter>
+    </None>
+    <None Include="assets\shaders\ShadowRay.hlsl">
+      <Filter>Shader Files\Raytrace</Filter>
+    </None>
+    <None Include="assets\shaders\DxrBackBuffer.hlsl">
+      <Filter>Shader Files\Raster</Filter>
     </None>
   </ItemGroup>
   <ItemGroup>
@@ -231,6 +240,9 @@
       <Filter>Source Files\Shading</Filter>
     </ClCompile>
     <ClCompile Include="src\GBuffer.cpp">
+      <Filter>Source Files\Shading</Filter>
+    </ClCompile>
+    <ClCompile Include="src\DxrShadowMap.cpp">
       <Filter>Source Files\Shading</Filter>
     </ClCompile>
   </ItemGroup>

@@ -29,11 +29,11 @@ bool GBuffer::Initialize(
 }
 
 void GBuffer::BuildDescriptors(
-	CD3DX12_CPU_DESCRIPTOR_HANDLE hCpuSrv,
-	CD3DX12_GPU_DESCRIPTOR_HANDLE hGpuSrv,
-	CD3DX12_CPU_DESCRIPTOR_HANDLE hCpuRtv,
-	UINT descSize, UINT rtvDescSize,
-	ID3D12Resource* depth) {
+		CD3DX12_CPU_DESCRIPTOR_HANDLE hCpuSrv,
+		CD3DX12_GPU_DESCRIPTOR_HANDLE hGpuSrv,
+		CD3DX12_CPU_DESCRIPTOR_HANDLE hCpuRtv,
+		UINT descSize, UINT rtvDescSize,
+		ID3D12Resource* depth) {
 	mhColorMapCpuSrv = hCpuSrv;
 	mhColorMapGpuSrv = hGpuSrv;
 	mhColorMapCpuRtv = hCpuRtv;
@@ -127,67 +127,62 @@ bool GBuffer::BuildResource() {
 	rscDesc.Layout = D3D12_TEXTURE_LAYOUT_UNKNOWN;
 	rscDesc.Flags = D3D12_RESOURCE_FLAG_ALLOW_RENDER_TARGET;
 
-	//
-	// Creates a resource for color map.
-	//
-	rscDesc.Format = mColorMapFormat;
+	{
+		rscDesc.Format = mColorMapFormat;
 
-	CD3DX12_CLEAR_VALUE optClear(mColorMapFormat, ColorMapClearValues);
+		CD3DX12_CLEAR_VALUE optClear(mColorMapFormat, ColorMapClearValues);
 
-	CheckHResult(md3dDevice->CreateCommittedResource(
-		&CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_DEFAULT),
-		D3D12_HEAP_FLAG_NONE,
-		&rscDesc,
-		D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE,
-		&optClear,
-		IID_PPV_ARGS(mColorMap.GetAddressOf())
-	));
+		CheckHResult(md3dDevice->CreateCommittedResource(
+			&CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_DEFAULT),
+			D3D12_HEAP_FLAG_NONE,
+			&rscDesc,
+			D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE,
+			&optClear,
+			IID_PPV_ARGS(mColorMap.GetAddressOf())
+		));
+	}
+	{
+		rscDesc.Format = mColorMapFormat;
 
-	//
-	// Creates a resource for albedo map.
-	//
-	optClear = CD3DX12_CLEAR_VALUE(mColorMapFormat, AlbedoMapClearValues);
+		CD3DX12_CLEAR_VALUE optClear = CD3DX12_CLEAR_VALUE(mColorMapFormat, AlbedoMapClearValues);
 
-	CheckHResult(md3dDevice->CreateCommittedResource(
-		&CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_DEFAULT),
-		D3D12_HEAP_FLAG_NONE,
-		&rscDesc,
-		D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE,
-		&optClear,
-		IID_PPV_ARGS(mAlbedoMap.GetAddressOf())
-	));
+		CheckHResult(md3dDevice->CreateCommittedResource(
+			&CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_DEFAULT),
+			D3D12_HEAP_FLAG_NONE,
+			&rscDesc,
+			D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE,
+			&optClear,
+			IID_PPV_ARGS(mAlbedoMap.GetAddressOf())
+		));
+	}
+	{
+		rscDesc.Format = mNormalMapFormat;
 
-	//
-	// Creates a resource for normal map.
-	//
-	rscDesc.Format = mNormalMapFormat;
+		CD3DX12_CLEAR_VALUE optClear = CD3DX12_CLEAR_VALUE(mNormalMapFormat, NormalMapClearValues);
 
-	optClear = CD3DX12_CLEAR_VALUE(mNormalMapFormat, NormalMapClearValues);
+		CheckHResult(md3dDevice->CreateCommittedResource(
+			&CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_DEFAULT),
+			D3D12_HEAP_FLAG_NONE,
+			&rscDesc,
+			D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE,
+			&optClear,
+			IID_PPV_ARGS(mNormalMap.GetAddressOf())
+		));
+	}
+	{
+		rscDesc.Format = mSpecularMapFormat;
 
-	CheckHResult(md3dDevice->CreateCommittedResource(
-		&CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_DEFAULT),
-		D3D12_HEAP_FLAG_NONE,
-		&rscDesc,
-		D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE,
-		&optClear,
-		IID_PPV_ARGS(mNormalMap.GetAddressOf())
-	));
+		CD3DX12_CLEAR_VALUE optClear = CD3DX12_CLEAR_VALUE(mSpecularMapFormat, SpecularMapClearValues);
 
-	//
-	// Creates a resource for normal map.
-	//
-	rscDesc.Format = mSpecularMapFormat;
-
-	optClear = CD3DX12_CLEAR_VALUE(mSpecularMapFormat, SpecularMapClearValues);
-
-	CheckHResult(md3dDevice->CreateCommittedResource(
-		&CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_DEFAULT),
-		D3D12_HEAP_FLAG_NONE,
-		&rscDesc,
-		D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE,
-		&optClear,
-		IID_PPV_ARGS(mSpecularMap.GetAddressOf())
-	));
+		CheckHResult(md3dDevice->CreateCommittedResource(
+			&CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_DEFAULT),
+			D3D12_HEAP_FLAG_NONE,
+			&rscDesc,
+			D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE,
+			&optClear,
+			IID_PPV_ARGS(mSpecularMap.GetAddressOf())
+		));
+	}
 
 	return true;
 }

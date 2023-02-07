@@ -105,7 +105,7 @@ namespace {
 }
 
 LowRenderer::LowRenderer() {
-	mRefreshRate = 60;
+	mRefreshRate = 0;
 	mClientWidth = 0;
 	mClientHeight = 0;
 	mRtvDescriptorSize = 0;

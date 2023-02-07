@@ -10,6 +10,7 @@
 #include "GeometryGenerator.h"
 #include "ShadowMap.h"
 #include "GBuffer.h"
+#include "DxrShadowMap.h"
 
 #include <array>
 #include <d3dcompiler.h>
@@ -146,6 +147,7 @@ Renderer::Renderer() {
 
 	mShadowMap = std::make_unique<ShadowMap>();
 	mGBuffer = std::make_unique<GBuffer>();
+	mDxrShadowMap = std::make_unique<DxrShadowMap>();
 }
 
 Renderer::~Renderer() {
@@ -166,6 +168,7 @@ bool Renderer::Initialize(HWND hMainWnd, UINT width, UINT height) {
 	const auto pDevice = md3dDevice.Get();
 	CheckIsValid(mShadowMap->Initialize(pDevice, 2048, 2048));
 	CheckIsValid(mGBuffer->Initialize(pDevice, width, height, BackBufferFormat, NormalMapFormat, DXGI_FORMAT_R24_UNORM_X8_TYPELESS, SpecularMapFormat));
+	CheckIsValid(mDxrShadowMap->Initialize(pDevice, width, height));
 
 	// Shared
 	CheckIsValid(CompileShaders());
@@ -232,13 +235,11 @@ bool Renderer::Update(const GameTimer& gt) {
 bool Renderer::Draw() {
 	CheckHResult(mCurrFrameResource->CmdListAlloc->Reset());
 
-	if (bRaytracing) {
-		CheckIsValid(Raytrace());
-	}
-	else {
-		CheckIsValid(Rasterize());
-	}
+	if (bRaytracing) { CheckIsValid(Raytrace()); }
+	else { CheckIsValid(Rasterize()); }
+
 	CheckIsValid(DrawDebugLayer());
+
 	if (bDisplayImgGui) CheckIsValid(DrawImGui());;
 
 	CheckHResult(mSwapChain->Present(0, 0));
@@ -256,6 +257,7 @@ bool Renderer::OnResize(UINT width, UINT height) {
 	BuildDebugViewport();
 
 	CheckIsValid(mGBuffer->OnResize(width, height, mDepthStencilBuffer.Get()));
+	CheckIsValid(mDxrShadowMap->OnResize(width, height));
 
 	CheckIsValid(BuildResources());
 	CheckIsValid(BuildDescriptors());
@@ -376,6 +378,11 @@ bool Renderer::CompileShaders() {
 		CheckIsValid(mShaderManager->CompileShader(filePath, nullptr, "VS", "vs_5_1", "backBufferVS"));
 		CheckIsValid(mShaderManager->CompileShader(filePath, nullptr, "PS", "ps_5_1", "backBufferPS"));
 	}
+	{
+		const auto filePath = ShaderFilePathW + L"DxrBackBuffer.hlsl";
+		CheckIsValid(mShaderManager->CompileShader(filePath, nullptr, "VS", "vs_5_1", "dxrBackBufferVS"));
+		CheckIsValid(mShaderManager->CompileShader(filePath, nullptr, "PS", "ps_5_1", "dxrBackBufferPS"));
+	}
 	//
 	// Raytracing
 	//
@@ -393,6 +400,11 @@ bool Renderer::CompileShaders() {
 		const auto filePath = ShaderFilePathW + L"ClosestHit.hlsl";
 		auto rayGenInfo = D3D12ShaderInfo(filePath.c_str(), L"", L"lib_6_3");
 		CheckIsValid(mShaderManager->CompileShader(rayGenInfo, "closestHit"));
+	}
+	{
+		const auto filePath = ShaderFilePathW + L"ShadowRay.hlsl";
+		auto rayGenInfo = D3D12ShaderInfo(filePath.c_str(), L"", L"lib_6_3");
+		CheckIsValid(mShaderManager->CompileShader(rayGenInfo, "shadowRay"));
 	}
 
 	return true;
@@ -622,21 +634,21 @@ bool Renderer::BuildRootSignatures() {
 		CD3DX12_ROOT_PARAMETER slotRootParameter[static_cast<int>(ERasterRootSignatureLayout::Count)];
 
 		CD3DX12_DESCRIPTOR_RANGE texTables[1];
-		texTables[0].Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, (UINT)EDescriptors::Count - (UINT)EDescriptors::ES_Font - 1, 0, 0);
+		texTables[0].Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, (UINT)EDescriptors::Srv_End - (UINT)EDescriptors::Srv_Start + 1, 0, 0);
 
 		slotRootParameter[static_cast<int>(ERasterRootSignatureLayout::EPassCB)].InitAsConstantBufferView(0);
 		slotRootParameter[static_cast<int>(ERasterRootSignatureLayout::EConsts)].InitAsConstants(static_cast<UINT>(ERasterRootConstantsLayout::Count), 1);
 		slotRootParameter[static_cast<int>(ERasterRootSignatureLayout::EObjSB)].InitAsShaderResourceView(0, 1);
 		slotRootParameter[static_cast<int>(ERasterRootSignatureLayout::EMatSB)].InitAsShaderResourceView(0, 2);
-		slotRootParameter[static_cast<int>(ERasterRootSignatureLayout::EMaps)].InitAsDescriptorTable(1, &texTables[0]);
+		slotRootParameter[static_cast<int>(ERasterRootSignatureLayout::ESrvMaps)].InitAsDescriptorTable(1, &texTables[0]);
 
 		auto samplers = GetStaticSamplers();
 
 		CD3DX12_ROOT_SIGNATURE_DESC rootSigDesc(
 			_countof(slotRootParameter), slotRootParameter,
 			static_cast<UINT>(samplers.size()), samplers.data(),
-			D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT);
-
+			D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT
+		);
 		CheckIsValid(D3D12Util::CreateRootSignature(md3dDevice.Get(), rootSigDesc, mRootSignatures["raster"].GetAddressOf()));
 	}
 	//
@@ -644,21 +656,31 @@ bool Renderer::BuildRootSignatures() {
 	//
 	// Global root signature
 	{
-		CD3DX12_DESCRIPTOR_RANGE ranges[3];
-		ranges[0].Init(D3D12_DESCRIPTOR_RANGE_TYPE_UAV, 1, 0); // 1 output texture
-		ranges[1].Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 64, 0, 1); // 1 vertex buffers
-		ranges[2].Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 64, 0, 2); // 1 index buffers
+		CD3DX12_DESCRIPTOR_RANGE texTables[5];
+		texTables[0].Init(D3D12_DESCRIPTOR_RANGE_TYPE_UAV, 1, 0);		
+		texTables[1].Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, gNumGeometryBuffers, 0, 1);
+		texTables[2].Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, gNumGeometryBuffers, 0, 2);
+		texTables[3].Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, (UINT)EDescriptors::ES_Specular - (UINT)EDescriptors::Srv_Start + 1, 0, 3);
+		texTables[4].Init(D3D12_DESCRIPTOR_RANGE_TYPE_UAV, (UINT)EDescriptors::Uav_End - (UINT)EDescriptors::Uav_Start + 1, 0, 2);
 
-		CD3DX12_ROOT_PARAMETER params[static_cast<int>(EGlobalRootSignatureLayout::Count)];
-		params[static_cast<int>(EGlobalRootSignatureLayout::EOutput)].InitAsDescriptorTable(1, &ranges[0]);
-		params[static_cast<int>(EGlobalRootSignatureLayout::EAccelerationStructure)].InitAsShaderResourceView(0);
-		params[static_cast<int>(EGlobalRootSignatureLayout::EPassCB)].InitAsConstantBufferView(0);
-		params[static_cast<int>(EGlobalRootSignatureLayout::EObjSB)].InitAsShaderResourceView(1);
-		params[static_cast<int>(EGlobalRootSignatureLayout::EMatSB)].InitAsShaderResourceView(2);
-		params[static_cast<int>(EGlobalRootSignatureLayout::EVertices)].InitAsDescriptorTable(1, &ranges[1]);
-		params[static_cast<int>(EGlobalRootSignatureLayout::EIndices)].InitAsDescriptorTable(1, &ranges[2]);
+		CD3DX12_ROOT_PARAMETER slotRootParameter[static_cast<int>(EGlobalRootSignatureLayout::Count)];
+		slotRootParameter[static_cast<int>(EGlobalRootSignatureLayout::EOutput)].InitAsDescriptorTable(1, &texTables[0]);
+		slotRootParameter[static_cast<int>(EGlobalRootSignatureLayout::EAccelerationStructure)].InitAsShaderResourceView(0);
+		slotRootParameter[static_cast<int>(EGlobalRootSignatureLayout::EPassCB)].InitAsConstantBufferView(0);
+		slotRootParameter[static_cast<int>(EGlobalRootSignatureLayout::EObjSB)].InitAsShaderResourceView(1);
+		slotRootParameter[static_cast<int>(EGlobalRootSignatureLayout::EMatSB)].InitAsShaderResourceView(2);
+		slotRootParameter[static_cast<int>(EGlobalRootSignatureLayout::EVertices)].InitAsDescriptorTable(1, &texTables[1]);
+		slotRootParameter[static_cast<int>(EGlobalRootSignatureLayout::EIndices)].InitAsDescriptorTable(1, &texTables[2]);
+		slotRootParameter[static_cast<int>(EGlobalRootSignatureLayout::ESrvMaps)].InitAsDescriptorTable(1, &texTables[3]);
+		slotRootParameter[static_cast<int>(EGlobalRootSignatureLayout::EUavMaps)].InitAsDescriptorTable(1, &texTables[4]);
 
-		CD3DX12_ROOT_SIGNATURE_DESC globalRootSignatureDesc(_countof(params), params);
+		auto samplers = GetStaticSamplers();
+
+		CD3DX12_ROOT_SIGNATURE_DESC globalRootSignatureDesc(
+			_countof(slotRootParameter), slotRootParameter,
+			static_cast<UINT>(samplers.size()), samplers.data(),
+			D3D12_ROOT_SIGNATURE_FLAG_NONE
+		);
 		CheckIsValid(D3D12Util::CreateRootSignature(md3dDevice.Get(), globalRootSignatureDesc, mRootSignatures["dxr_global"].GetAddressOf()));
 	}
 	// Local root signature
@@ -761,6 +783,13 @@ bool Renderer::BuildDescriptors() {
 		CD3DX12_CPU_DESCRIPTOR_HANDLE(rtvCpuStart, static_cast<INT>(ERtvHeapLayout::EColor), rtvDescSize),
 		descSize, rtvDescSize,
 		mDepthStencilBuffer.Get()
+	);
+
+	mDxrShadowMap->BuildDescriptors(
+		CD3DX12_CPU_DESCRIPTOR_HANDLE(cpuStart, static_cast<INT>(EDescriptors::ES_DxrShadow), descSize),
+		CD3DX12_GPU_DESCRIPTOR_HANDLE(gpuStart, static_cast<INT>(EDescriptors::ES_DxrShadow), descSize),
+		CD3DX12_CPU_DESCRIPTOR_HANDLE(cpuStart, static_cast<INT>(EDescriptors::EU_Shadow), descSize),
+		CD3DX12_GPU_DESCRIPTOR_HANDLE(gpuStart, static_cast<INT>(EDescriptors::EU_Shadow), descSize)
 	);
 
 	return true;
@@ -883,6 +912,22 @@ bool Renderer::BuildPSOs() {
 	}
 	debugPsoDesc.RTVFormats[0] = BackBufferFormat;
 	CheckHResult(md3dDevice->CreateGraphicsPipelineState(&debugPsoDesc, IID_PPV_ARGS(&mPSOs["debug"])));
+
+	D3D12_GRAPHICS_PIPELINE_STATE_DESC dxrBackBufferPsoDesc = quadPsoDesc;
+	{
+		auto vs = mShaderManager->GetShader("dxrBackBufferVS");
+		auto ps = mShaderManager->GetShader("dxrBackBufferPS");
+		dxrBackBufferPsoDesc.VS = {
+			reinterpret_cast<BYTE*>(vs->GetBufferPointer()),
+			vs->GetBufferSize()
+		};
+		dxrBackBufferPsoDesc.PS = {
+			reinterpret_cast<BYTE*>(ps->GetBufferPointer()),
+			ps->GetBufferSize()
+		};
+	}
+	dxrBackBufferPsoDesc.RTVFormats[0] = BackBufferFormat;
+	CheckHResult(md3dDevice->CreateGraphicsPipelineState(&dxrBackBufferPsoDesc, IID_PPV_ARGS(&mPSOs["dxrBackBuffer"])));
 
 	return true;
 }
@@ -1156,6 +1201,18 @@ bool Renderer::BuildDXRPSOs() {
 	higGroup->SetHitGroupExport(L"HitGroup");
 	higGroup->SetHitGroupType(D3D12_HIT_GROUP_TYPE_TRIANGLES);
 
+	auto shadowRayLib = dxrPso.CreateSubobject<CD3DX12_DXIL_LIBRARY_SUBOBJECT>();
+	auto shadowRayShader = mShaderManager->GetRTShader("shadowRay");
+	D3D12_SHADER_BYTECODE shadowRayLibDxil = CD3DX12_SHADER_BYTECODE(shadowRayShader->GetBufferPointer(), shadowRayShader->GetBufferSize());
+	shadowRayLib->SetDXILLibrary(&shadowRayLibDxil);
+	LPCWSTR exports[] = { L"ShadowRayGen", L"ShadowClosestHit", L"ShadowMiss" };
+	shadowRayLib->DefineExports(exports);
+
+	auto shadowHitGroup = dxrPso.CreateSubobject<CD3DX12_HIT_GROUP_SUBOBJECT>();
+	shadowHitGroup->SetClosestHitShaderImport(L"ShadowClosestHit");
+	shadowHitGroup->SetHitGroupExport(L"ShadowHitGroup");
+	shadowHitGroup->SetHitGroupType(D3D12_HIT_GROUP_TYPE_TRIANGLES);
+
 	auto shaderConfig = dxrPso.CreateSubobject<CD3DX12_RAYTRACING_SHADER_CONFIG_SUBOBJECT>();
 	UINT payloadSize = sizeof(XMFLOAT4);	// for pixel color
 	UINT attribSize = sizeof(XMFLOAT2);		// for barycentrics
@@ -1167,6 +1224,11 @@ bool Renderer::BuildDXRPSOs() {
 		auto rootSigAssociation = dxrPso.CreateSubobject<CD3DX12_SUBOBJECT_TO_EXPORTS_ASSOCIATION_SUBOBJECT>();
 		rootSigAssociation->SetSubobjectToAssociate(*localRootSig);
 		rootSigAssociation->AddExport(L"HitGroup");
+	}
+	{
+		auto rootSigAssociation = dxrPso.CreateSubobject<CD3DX12_SUBOBJECT_TO_EXPORTS_ASSOCIATION_SUBOBJECT>();
+		rootSigAssociation->SetSubobjectToAssociate(*localRootSig);
+		rootSigAssociation->AddExport(L"ShadowHitGroup");
 	}
 
 	auto glbalRootSig = dxrPso.CreateSubobject<CD3DX12_GLOBAL_ROOT_SIGNATURE_SUBOBJECT>();
@@ -1184,9 +1246,14 @@ bool Renderer::BuildDXRPSOs() {
 
 bool Renderer::BuildShaderTables() {
 	UINT shaderIdentifierSize = D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES;
+
 	void* rayGenShaderIdentifier = mDXRPSOProps["defaultProps"]->GetShaderIdentifier(L"RayGen");
 	void* missShaderIdentifier = mDXRPSOProps["defaultProps"]->GetShaderIdentifier(L"Miss");
 	void* hitGroupShaderIdentifier = mDXRPSOProps["defaultProps"]->GetShaderIdentifier(L"HitGroup");
+
+	void* shadowRayGenShaderIdentifier = mDXRPSOProps["defaultProps"]->GetShaderIdentifier(L"ShadowRayGen");
+	void* shadowMissShaderIdentifier = mDXRPSOProps["defaultProps"]->GetShaderIdentifier(L"ShadowMiss");
+	void* shadowHitGroupShaderIdentifier = mDXRPSOProps["defaultProps"]->GetShaderIdentifier(L"ShadowHitGroup");
 
 	// Ray gen shader table
 	ShaderTable rayGenShaderTable(md3dDevice.Get(), 1, shaderIdentifierSize);
@@ -1213,6 +1280,21 @@ bool Renderer::BuildShaderTables() {
 		hitGroupTable.push_back(ShaderRecord(hitGroupShaderIdentifier, shaderIdentifierSize));
 	}
 	mShaderTables["hitGroup"] = hitGroupTable.GetResource();
+
+	ShaderTable shadowRayGenShaderTable(md3dDevice.Get(), 1, shaderIdentifierSize);
+	CheckIsValid(shadowRayGenShaderTable.Initialze());
+	shadowRayGenShaderTable.push_back(ShaderRecord(shadowRayGenShaderIdentifier, shaderIdentifierSize));
+	mShaderTables["shadowRayGen"] = shadowRayGenShaderTable.GetResource();
+
+	ShaderTable shadowMissShaderTable(md3dDevice.Get(), 1, shaderIdentifierSize);
+	CheckIsValid(shadowMissShaderTable.Initialze());
+	shadowMissShaderTable.push_back(ShaderRecord(shadowMissShaderIdentifier, shaderIdentifierSize));
+	mShaderTables["shadowMiss"] = shadowMissShaderTable.GetResource();
+
+	ShaderTable shadowHitGroupTable(md3dDevice.Get(), 1, shaderIdentifierSize);
+	CheckIsValid(shadowHitGroupTable.Initialze());
+	shadowHitGroupTable.push_back(ShaderRecord(shadowHitGroupShaderIdentifier, shaderIdentifierSize));
+	mShaderTables["shadowHitGroup"] = shadowHitGroupTable.GetResource();
 
 	return true;
 }
@@ -1366,224 +1448,6 @@ bool Renderer::Rasterize() {
 	return true;
 }
 
-bool Renderer::Raytrace() {
-	CheckHResult(mCommandList->Reset(mCurrFrameResource->CmdListAlloc.Get(), nullptr));
-
-	mCommandList->SetComputeRootSignature(mRootSignatures["dxr_global"].Get());
-
-	const auto pDescHeap = mCbvSrvUavHeap.Get();
-	ID3D12DescriptorHeap* descriptorHeaps[] = { pDescHeap };
-	mCommandList->SetDescriptorHeaps(_countof(descriptorHeaps), descriptorHeaps);
-
-	UINT cbvSrvUavDescriptorSize = GetCbvSrvUavDescriptorSize();
-
-	mCommandList->SetComputeRootShaderResourceView(static_cast<UINT>(EGlobalRootSignatureLayout::EAccelerationStructure), mTLAS->Result->GetGPUVirtualAddress());
-
-	const auto& passCBAddress = mCurrFrameResource->PassCB.Resource()->GetGPUVirtualAddress();
-	mCommandList->SetComputeRootConstantBufferView(static_cast<UINT>(EGlobalRootSignatureLayout::EPassCB), passCBAddress);
-
-	const auto& objSBAddress = mCurrFrameResource->ObjectSB.Resource()->GetGPUVirtualAddress();
-	mCommandList->SetComputeRootShaderResourceView(static_cast<UINT>(EGlobalRootSignatureLayout::EObjSB), objSBAddress);
-
-	const auto& matSBAddress = mCurrFrameResource->MaterialSB.Resource()->GetGPUVirtualAddress();
-	mCommandList->SetComputeRootShaderResourceView(static_cast<UINT>(EGlobalRootSignatureLayout::EMatSB), matSBAddress);
-
-	mCommandList->SetComputeRootDescriptorTable(
-		static_cast<UINT>(EGlobalRootSignatureLayout::EOutput),
-		D3D12Util::GetGpuHandle(pDescHeap, static_cast<INT>(EDescriptors::EU_Output0) + mCurrFrameResourceIndex, cbvSrvUavDescriptorSize)
-	);
-	mCommandList->SetComputeRootDescriptorTable(
-		static_cast<UINT>(EGlobalRootSignatureLayout::EVertices),
-		D3D12Util::GetGpuHandle(pDescHeap, static_cast<INT>(EDescriptors::ES_Vertices), cbvSrvUavDescriptorSize)
-	);
-	mCommandList->SetComputeRootDescriptorTable(
-		static_cast<UINT>(EGlobalRootSignatureLayout::EIndices),
-		D3D12Util::GetGpuHandle(pDescHeap, static_cast<INT>(EDescriptors::ES_Indices), cbvSrvUavDescriptorSize)
-	);
-	
-	D3D12_DISPATCH_RAYS_DESC dispatchDesc = {};
-	const auto& rayGen = mShaderTables["rayGen"];
-	const auto& miss = mShaderTables["miss"];
-	const auto& hitGroup = mShaderTables["hitGroup"];
-	dispatchDesc.RayGenerationShaderRecord.StartAddress = rayGen->GetGPUVirtualAddress();
-	dispatchDesc.RayGenerationShaderRecord.SizeInBytes = rayGen->GetDesc().Width;
-	dispatchDesc.MissShaderTable.StartAddress = miss->GetGPUVirtualAddress();
-	dispatchDesc.MissShaderTable.SizeInBytes = miss->GetDesc().Width;
-	dispatchDesc.MissShaderTable.StrideInBytes = dispatchDesc.MissShaderTable.SizeInBytes;
-	dispatchDesc.HitGroupTable.StartAddress = hitGroup->GetGPUVirtualAddress();
-	dispatchDesc.HitGroupTable.SizeInBytes = hitGroup->GetDesc().Width;
-	dispatchDesc.HitGroupTable.StrideInBytes = dispatchDesc.HitGroupTable.SizeInBytes;
-	dispatchDesc.Width = GetClientWidth();
-	dispatchDesc.Height = GetClientHeight();
-	dispatchDesc.Depth = 1;
-
-	mCommandList->SetPipelineState1(mDXRPSOs["default"].Get());
-	mCommandList->DispatchRays(&dispatchDesc);
-
-	const auto pOutput = mDXROutputs[mCurrFrameResourceIndex].Get();
-	mCommandList->ResourceBarrier(
-		1,
-		&CD3DX12_RESOURCE_BARRIER::Transition(
-			pOutput,
-			D3D12_RESOURCE_STATE_COMMON,
-			D3D12_RESOURCE_STATE_COPY_SOURCE)
-	);
-
-	mCommandList->ResourceBarrier(
-		1,
-		&CD3DX12_RESOURCE_BARRIER::Transition(
-			CurrentBackBuffer(),
-			D3D12_RESOURCE_STATE_PRESENT,
-			D3D12_RESOURCE_STATE_COPY_DEST)
-	);
-
-	mCommandList->CopyResource(CurrentBackBuffer(), pOutput);
-
-	mCommandList->ResourceBarrier(
-		1,
-		&CD3DX12_RESOURCE_BARRIER::Transition(
-			CurrentBackBuffer(),
-			D3D12_RESOURCE_STATE_COPY_DEST,
-			D3D12_RESOURCE_STATE_PRESENT)
-	);
-
-	mCommandList->ResourceBarrier(
-		1,
-		&CD3DX12_RESOURCE_BARRIER::Transition(
-			pOutput,
-			D3D12_RESOURCE_STATE_COPY_SOURCE,
-			D3D12_RESOURCE_STATE_COMMON)
-	);
-
-	CheckHResult(mCommandList->Close());
-	ID3D12CommandList* cmdsLists[] = { mCommandList.Get() };
-	mCommandQueue->ExecuteCommandLists(_countof(cmdsLists), cmdsLists);
-
-	return true;
-}
-
-bool Renderer::DrawDebugLayer() {
-	CheckHResult(mCommandList->Reset(mCurrFrameResource->CmdListAlloc.Get(), mPSOs["gizmo"].Get()));
-
-	mCommandList->SetGraphicsRootSignature(mRootSignatures["raster"].Get());
-
-	ID3D12DescriptorHeap* descriptorHeaps[] = { mCbvSrvUavHeap.Get() };
-	mCommandList->SetDescriptorHeaps(_countof(descriptorHeaps), descriptorHeaps);
-
-	mCommandList->RSSetViewports(1, &mDebugViewport);
-	mCommandList->RSSetScissorRects(1, &mDebugScissorRect);
-
-	const auto renderTarget = CurrentBackBuffer();
-	mCommandList->ResourceBarrier(
-		1,
-		&CD3DX12_RESOURCE_BARRIER::Transition(
-			renderTarget,
-			D3D12_RESOURCE_STATE_PRESENT,
-			D3D12_RESOURCE_STATE_RENDER_TARGET
-		)
-	);
-
-	mCommandList->OMSetRenderTargets(1, &CurrentBackBufferView(), true, nullptr);
-
-	const auto& passCBAddress = mCurrFrameResource->PassCB.Resource()->GetGPUVirtualAddress();
-	mCommandList->SetGraphicsRootConstantBufferView(static_cast<UINT>(ERasterRootSignatureLayout::EPassCB), passCBAddress);
-
-	mCommandList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_LINELIST);
-	mCommandList->DrawInstanced(2, 3, 0, 0);
-
-	if (bDisplayMaps) {
-		mCommandList->SetPipelineState(mPSOs["debug"].Get());
-
-		mCommandList->RSSetViewports(1, &mScreenViewport);
-		mCommandList->RSSetScissorRects(1, &mScissorRect);
-
-		mCommandList->SetGraphicsRootDescriptorTable(
-			static_cast<UINT>(ERasterRootSignatureLayout::EMaps),
-			D3D12Util::GetGpuHandle(
-				mCbvSrvUavHeap.Get(),
-				static_cast<INT>(EDescriptors::ES_Color),
-				GetCbvSrvUavDescriptorSize()
-			)
-		);
-
-		mCommandList->IASetVertexBuffers(0, 0, nullptr);
-		mCommandList->IASetIndexBuffer(nullptr);
-		mCommandList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
-		mCommandList->DrawInstanced(6, 5, 0, 0);
-	}
-
-	mCommandList->ResourceBarrier(
-		1,
-		&CD3DX12_RESOURCE_BARRIER::Transition(
-			renderTarget,
-			D3D12_RESOURCE_STATE_RENDER_TARGET,
-			D3D12_RESOURCE_STATE_PRESENT
-		)
-	);
-
-	CheckHResult(mCommandList->Close());
-	ID3D12CommandList* cmdsLists[] = { mCommandList.Get() };
-	mCommandQueue->ExecuteCommandLists(_countof(cmdsLists), cmdsLists);
-
-	return true;
-}
-
-bool Renderer::DrawImGui() {
-	CheckHResult(mCommandList->Reset(mCurrFrameResource->CmdListAlloc.Get(), nullptr));
-
-	ID3D12DescriptorHeap* descriptorHeaps[] = { mCbvSrvUavHeap.Get() };
-	mCommandList->SetDescriptorHeaps(_countof(descriptorHeaps), descriptorHeaps);
-
-	mCommandList->RSSetViewports(1, &mScreenViewport);
-	mCommandList->RSSetScissorRects(1, &mScissorRect);
-
-	const auto pCurrBackBuffer = CurrentBackBuffer();
-	mCommandList->ResourceBarrier(
-		1,
-		&CD3DX12_RESOURCE_BARRIER::Transition(
-			pCurrBackBuffer,
-			D3D12_RESOURCE_STATE_PRESENT,
-			D3D12_RESOURCE_STATE_RENDER_TARGET
-		)
-	);
-
-	auto pCurrBackBufferView = CurrentBackBufferView();
-	mCommandList->OMSetRenderTargets(1, &pCurrBackBufferView, true, nullptr);
-
-	ImGui_ImplDX12_NewFrame();
-	ImGui_ImplWin32_NewFrame();
-	ImGui::NewFrame();
-
-	{
-		ImGui::Begin("Main Panel");
-		ImGui::Text("Application average %.3f ms/frame (%.1f FPS)", 1000.0f / ImGui::GetIO().Framerate, ImGui::GetIO().Framerate);
-		ImGui::NewLine();
-
-		ImGui::Checkbox("Display Maps", &bDisplayMaps);
-
-		ImGui::End();
-	}
-
-	ImGui::Render();
-
-	ImGui_ImplDX12_RenderDrawData(ImGui::GetDrawData(), mCommandList.Get());
-
-	mCommandList->ResourceBarrier(
-		1,
-		&CD3DX12_RESOURCE_BARRIER::Transition(
-			pCurrBackBuffer,
-			D3D12_RESOURCE_STATE_RENDER_TARGET,
-			D3D12_RESOURCE_STATE_PRESENT
-		)
-	);
-
-	CheckHResult(mCommandList->Close());
-	ID3D12CommandList* cmdsLists[] = { mCommandList.Get() };
-	mCommandQueue->ExecuteCommandLists(_countof(cmdsLists), cmdsLists);
-
-	return true;
-}
-
 bool Renderer::DrawRenderItems(const std::vector<RenderItem*>& ritems) { 
 	// For each render item...
 	for (size_t i = 0; i < ritems.size(); ++i) {
@@ -1593,7 +1457,11 @@ bool Renderer::DrawRenderItems(const std::vector<RenderItem*>& ritems) {
 		mCommandList->IASetIndexBuffer(&ri->Geo->IndexBufferView());
 		mCommandList->IASetPrimitiveTopology(ri->PrimitiveType);
 
-		mCommandList->SetGraphicsRoot32BitConstant(static_cast<UINT>(ERasterRootSignatureLayout::EConsts), ri->ObjSBIndex, 0);
+		mCommandList->SetGraphicsRoot32BitConstant(
+			static_cast<UINT>(ERasterRootSignatureLayout::EConsts), 
+			ri->ObjSBIndex, 
+			static_cast<UINT>(ERasterRootConstantsLayout::EInstanceID)
+		);
 
 		mCommandList->DrawIndexedInstanced(ri->IndexCount, 1, ri->StartIndexLocation, ri->BaseVertexLocation, 0);
 	}
@@ -1804,12 +1672,268 @@ bool Renderer::DrawBackBuffer() {
 	mCommandList->SetGraphicsRootShaderResourceView(static_cast<UINT>(ERasterRootSignatureLayout::EMatSB), matSBAddress);
 
 	mCommandList->SetGraphicsRootDescriptorTable(
-		static_cast<UINT>(ERasterRootSignatureLayout::EMaps),
+		static_cast<UINT>(ERasterRootSignatureLayout::ESrvMaps),
 		D3D12Util::GetGpuHandle(
 			pDescHeap,
 			static_cast<INT>(EDescriptors::ES_Color),
 			GetCbvSrvUavDescriptorSize()
 		)
+	);
+
+	mCommandList->IASetVertexBuffers(0, 0, nullptr);
+	mCommandList->IASetIndexBuffer(nullptr);
+	mCommandList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+	mCommandList->DrawInstanced(6, 1, 0, 0);
+
+	mCommandList->ResourceBarrier(
+		1,
+		&CD3DX12_RESOURCE_BARRIER::Transition(
+			pCurrBackBuffer,
+			D3D12_RESOURCE_STATE_RENDER_TARGET,
+			D3D12_RESOURCE_STATE_PRESENT
+		)
+	);
+
+	CheckHResult(mCommandList->Close());
+	ID3D12CommandList* cmdsLists[] = { mCommandList.Get() };
+	mCommandQueue->ExecuteCommandLists(_countof(cmdsLists), cmdsLists);
+
+	return true;
+}
+
+bool Renderer::DrawDebugLayer() {
+	CheckHResult(mCommandList->Reset(mCurrFrameResource->CmdListAlloc.Get(), mPSOs["gizmo"].Get()));
+
+	mCommandList->SetGraphicsRootSignature(mRootSignatures["raster"].Get());
+
+	ID3D12DescriptorHeap* descriptorHeaps[] = { mCbvSrvUavHeap.Get() };
+	mCommandList->SetDescriptorHeaps(_countof(descriptorHeaps), descriptorHeaps);
+
+	mCommandList->RSSetViewports(1, &mDebugViewport);
+	mCommandList->RSSetScissorRects(1, &mDebugScissorRect);
+
+	const auto renderTarget = CurrentBackBuffer();
+	mCommandList->ResourceBarrier(
+		1,
+		&CD3DX12_RESOURCE_BARRIER::Transition(
+			renderTarget,
+			D3D12_RESOURCE_STATE_PRESENT,
+			D3D12_RESOURCE_STATE_RENDER_TARGET
+		)
+	);
+
+	mCommandList->OMSetRenderTargets(1, &CurrentBackBufferView(), true, nullptr);
+
+	const auto& passCBAddress = mCurrFrameResource->PassCB.Resource()->GetGPUVirtualAddress();
+	mCommandList->SetGraphicsRootConstantBufferView(static_cast<UINT>(ERasterRootSignatureLayout::EPassCB), passCBAddress);
+
+	mCommandList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_LINELIST);
+	mCommandList->DrawInstanced(2, 3, 0, 0);
+
+	if (bDisplayMaps) {
+		mCommandList->SetPipelineState(mPSOs["debug"].Get());
+
+		mCommandList->RSSetViewports(1, &mScreenViewport);
+		mCommandList->RSSetScissorRects(1, &mScissorRect);
+
+		mCommandList->SetGraphicsRoot32BitConstant(
+			static_cast<UINT>(ERasterRootSignatureLayout::EConsts),
+			static_cast<UINT>(bRaytracing),
+			static_cast<UINT>(ERasterRootConstantsLayout::EIsRaytracing)
+		);
+
+		mCommandList->SetGraphicsRootDescriptorTable(
+			static_cast<UINT>(ERasterRootSignatureLayout::ESrvMaps),
+			D3D12Util::GetGpuHandle(mCbvSrvUavHeap.Get(), static_cast<INT>(EDescriptors::Srv_Start), GetCbvSrvUavDescriptorSize())
+		);
+
+		mCommandList->IASetVertexBuffers(0, 0, nullptr);
+		mCommandList->IASetIndexBuffer(nullptr);
+		mCommandList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+		mCommandList->DrawInstanced(6, 5, 0, 0);
+	}
+
+	mCommandList->ResourceBarrier(
+		1,
+		&CD3DX12_RESOURCE_BARRIER::Transition(
+			renderTarget,
+			D3D12_RESOURCE_STATE_RENDER_TARGET,
+			D3D12_RESOURCE_STATE_PRESENT
+		)
+	);
+
+	CheckHResult(mCommandList->Close());
+	ID3D12CommandList* cmdsLists[] = { mCommandList.Get() };
+	mCommandQueue->ExecuteCommandLists(_countof(cmdsLists), cmdsLists);
+
+	return true;
+}
+
+bool Renderer::DrawImGui() {
+	CheckHResult(mCommandList->Reset(mCurrFrameResource->CmdListAlloc.Get(), nullptr));
+
+	ID3D12DescriptorHeap* descriptorHeaps[] = { mCbvSrvUavHeap.Get() };
+	mCommandList->SetDescriptorHeaps(_countof(descriptorHeaps), descriptorHeaps);
+
+	mCommandList->RSSetViewports(1, &mScreenViewport);
+	mCommandList->RSSetScissorRects(1, &mScissorRect);
+
+	const auto pCurrBackBuffer = CurrentBackBuffer();
+	mCommandList->ResourceBarrier(
+		1,
+		&CD3DX12_RESOURCE_BARRIER::Transition(
+			pCurrBackBuffer,
+			D3D12_RESOURCE_STATE_PRESENT,
+			D3D12_RESOURCE_STATE_RENDER_TARGET
+		)
+	);
+
+	auto pCurrBackBufferView = CurrentBackBufferView();
+	mCommandList->OMSetRenderTargets(1, &pCurrBackBufferView, true, nullptr);
+
+	ImGui_ImplDX12_NewFrame();
+	ImGui_ImplWin32_NewFrame();
+	ImGui::NewFrame();
+
+	{
+		ImGui::Begin("Main Panel");
+		ImGui::Text("Application average %.3f ms/frame (%.1f FPS)", 1000.0f / ImGui::GetIO().Framerate, ImGui::GetIO().Framerate);
+		ImGui::NewLine();
+
+		ImGui::Checkbox("Display Maps", &bDisplayMaps);
+
+		ImGui::End();
+	}
+
+	ImGui::Render();
+
+	ImGui_ImplDX12_RenderDrawData(ImGui::GetDrawData(), mCommandList.Get());
+
+	mCommandList->ResourceBarrier(
+		1,
+		&CD3DX12_RESOURCE_BARRIER::Transition(
+			pCurrBackBuffer,
+			D3D12_RESOURCE_STATE_RENDER_TARGET,
+			D3D12_RESOURCE_STATE_PRESENT
+		)
+	);
+
+	CheckHResult(mCommandList->Close());
+	ID3D12CommandList* cmdsLists[] = { mCommandList.Get() };
+	mCommandQueue->ExecuteCommandLists(_countof(cmdsLists), cmdsLists);
+
+	return true;
+}
+
+bool Renderer::Raytrace() {
+	CheckIsValid(DrawGBuffer());
+	CheckIsValid(dxrDrawShadowMap());
+	CheckIsValid(dxrDrawBackBuffer());
+
+	return true;
+}
+
+bool Renderer::dxrDrawShadowMap() {
+	CheckHResult(mCommandList->Reset(mCurrFrameResource->CmdListAlloc.Get(), nullptr));
+
+	mCommandList->SetComputeRootSignature(mRootSignatures["dxr_global"].Get());
+
+	const auto pDescHeap = mCbvSrvUavHeap.Get();
+	ID3D12DescriptorHeap* descriptorHeaps[] = { pDescHeap };
+	mCommandList->SetDescriptorHeaps(_countof(descriptorHeaps), descriptorHeaps);
+
+	UINT cbvSrvUavDescriptorSize = GetCbvSrvUavDescriptorSize();
+
+	mCommandList->SetComputeRootShaderResourceView(static_cast<UINT>(EGlobalRootSignatureLayout::EAccelerationStructure), mTLAS->Result->GetGPUVirtualAddress());
+
+	const auto& passCBAddress = mCurrFrameResource->PassCB.Resource()->GetGPUVirtualAddress();
+	mCommandList->SetComputeRootConstantBufferView(static_cast<UINT>(EGlobalRootSignatureLayout::EPassCB), passCBAddress);
+
+	const auto& objSBAddress = mCurrFrameResource->ObjectSB.Resource()->GetGPUVirtualAddress();
+	mCommandList->SetComputeRootShaderResourceView(static_cast<UINT>(EGlobalRootSignatureLayout::EObjSB), objSBAddress);
+
+	const auto& matSBAddress = mCurrFrameResource->MaterialSB.Resource()->GetGPUVirtualAddress();
+	mCommandList->SetComputeRootShaderResourceView(static_cast<UINT>(EGlobalRootSignatureLayout::EMatSB), matSBAddress);
+
+	mCommandList->SetComputeRootDescriptorTable(
+		static_cast<UINT>(EGlobalRootSignatureLayout::EOutput),
+		D3D12Util::GetGpuHandle(pDescHeap, static_cast<INT>(EDescriptors::EU_Output0) + mCurrFrameResourceIndex, cbvSrvUavDescriptorSize)
+	);
+	mCommandList->SetComputeRootDescriptorTable(
+		static_cast<UINT>(EGlobalRootSignatureLayout::EVertices),
+		D3D12Util::GetGpuHandle(pDescHeap, static_cast<INT>(EDescriptors::ES_Vertices), cbvSrvUavDescriptorSize)
+	);
+	mCommandList->SetComputeRootDescriptorTable(
+		static_cast<UINT>(EGlobalRootSignatureLayout::EIndices),
+		D3D12Util::GetGpuHandle(pDescHeap, static_cast<INT>(EDescriptors::ES_Indices), cbvSrvUavDescriptorSize)
+	);
+
+	mCommandList->SetComputeRootDescriptorTable(
+		static_cast<UINT>(EGlobalRootSignatureLayout::ESrvMaps),
+		D3D12Util::GetGpuHandle(pDescHeap, static_cast<INT>(EDescriptors::Srv_Start), cbvSrvUavDescriptorSize)
+	);
+	mCommandList->SetComputeRootDescriptorTable(
+		static_cast<UINT>(EGlobalRootSignatureLayout::EUavMaps),
+		D3D12Util::GetGpuHandle(pDescHeap, static_cast<INT>(EDescriptors::Uav_Start), cbvSrvUavDescriptorSize)
+	);
+
+	D3D12_DISPATCH_RAYS_DESC dispatchDesc = {};
+	const auto& rayGen = mShaderTables["shadowRayGen"];
+	const auto& miss = mShaderTables["shadowMiss"];
+	const auto& hitGroup = mShaderTables["shadowHitGroup"];
+	dispatchDesc.RayGenerationShaderRecord.StartAddress = rayGen->GetGPUVirtualAddress();
+	dispatchDesc.RayGenerationShaderRecord.SizeInBytes = rayGen->GetDesc().Width;
+	dispatchDesc.MissShaderTable.StartAddress = miss->GetGPUVirtualAddress();
+	dispatchDesc.MissShaderTable.SizeInBytes = miss->GetDesc().Width;
+	dispatchDesc.MissShaderTable.StrideInBytes = dispatchDesc.MissShaderTable.SizeInBytes;
+	dispatchDesc.HitGroupTable.StartAddress = hitGroup->GetGPUVirtualAddress();
+	dispatchDesc.HitGroupTable.SizeInBytes = hitGroup->GetDesc().Width;
+	dispatchDesc.HitGroupTable.StrideInBytes = dispatchDesc.HitGroupTable.SizeInBytes;
+	dispatchDesc.Width = GetClientWidth();
+	dispatchDesc.Height = GetClientHeight();
+	dispatchDesc.Depth = 1;
+	
+	mCommandList->SetPipelineState1(mDXRPSOs["default"].Get());
+	mCommandList->DispatchRays(&dispatchDesc);
+
+	CheckHResult(mCommandList->Close());
+	ID3D12CommandList* cmdsLists[] = { mCommandList.Get() };
+	mCommandQueue->ExecuteCommandLists(_countof(cmdsLists), cmdsLists);
+
+	return true;
+}
+
+bool Renderer::dxrDrawBackBuffer() {
+	CheckHResult(mCommandList->Reset(mCurrFrameResource->CmdListAlloc.Get(), mPSOs["dxrBackBuffer"].Get()));
+
+	mCommandList->SetGraphicsRootSignature(mRootSignatures["raster"].Get());
+
+	const auto pDescHeap = mCbvSrvUavHeap.Get();
+	ID3D12DescriptorHeap* descriptorHeaps[] = { pDescHeap };
+	mCommandList->SetDescriptorHeaps(_countof(descriptorHeaps), descriptorHeaps);
+
+	mCommandList->RSSetViewports(1, &mScreenViewport);
+	mCommandList->RSSetScissorRects(1, &mScissorRect);
+
+	const auto pCurrBackBuffer = CurrentBackBuffer();
+	mCommandList->ResourceBarrier(
+		1,
+		&CD3DX12_RESOURCE_BARRIER::Transition(
+			pCurrBackBuffer,
+			D3D12_RESOURCE_STATE_PRESENT,
+			D3D12_RESOURCE_STATE_RENDER_TARGET
+		)
+	);
+
+	auto pCurrBackBufferView = CurrentBackBufferView();
+	mCommandList->OMSetRenderTargets(1, &pCurrBackBufferView, true, nullptr);
+
+	auto passCBAddress = mCurrFrameResource->PassCB.Resource()->GetGPUVirtualAddress();
+	mCommandList->SetGraphicsRootConstantBufferView(static_cast<UINT>(ERasterRootSignatureLayout::EPassCB), passCBAddress);
+
+	mCommandList->SetGraphicsRootDescriptorTable(
+		static_cast<UINT>(ERasterRootSignatureLayout::ESrvMaps),
+		D3D12Util::GetGpuHandle(mCbvSrvUavHeap.Get(), static_cast<INT>(EDescriptors::Srv_Start), GetCbvSrvUavDescriptorSize())
 	);
 
 	mCommandList->IASetVertexBuffers(0, 0, nullptr);

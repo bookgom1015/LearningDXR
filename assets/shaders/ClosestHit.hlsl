@@ -43,7 +43,7 @@
 #include "DxrCommon.hlsli"
 
 [shader("closesthit")]
-void ClosestHit(inout RayPayload payload, in Attributes attr) {
+void ClosestHit(inout HitInfo payload, in Attributes attr) {
 	float3 hitPosition = HitWorldPosition();
 
 	// Get the base index of the triangle's first 32 bit index.
@@ -81,13 +81,14 @@ void ClosestHit(inout RayPayload payload, in Attributes attr) {
 	Material mat = { matData.DiffuseAlbedo, matData.FresnelR0, shiness };
 
 	float3 shadowFactor = 1.0f;
+	shadowFactor[0] = gShadowMap[DispatchRaysIndex().xy].r;
+
 	float4 directLight = ComputeLighting(gLights, mat, hitPosition, triangleNormal, toEyeW, shadowFactor);
 
 	float4 color = ambient + directLight;
 	color.a = matData.DiffuseAlbedo.a;
 	
 	payload.Color = color;
-	//payload.Color = float4(triangleNormal, 1.0f);
 }
 
 #endif // __CLOSESTHIT_HLSL__

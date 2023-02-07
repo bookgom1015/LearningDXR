@@ -4,7 +4,7 @@
 #include "DxrCommon.hlsli"
 
 [shader("miss")]
-void Miss(inout RayPayload payload) {
+void Miss(inout HitInfo payload) {
 	uint2 launchIndex = DispatchRaysIndex().xy;
 	float2 dims = DispatchRaysDimensions().xy;
 	float ramp = (launchIndex.y / dims.y) * 0.4f;

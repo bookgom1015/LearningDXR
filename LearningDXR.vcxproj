@@ -15,6 +15,7 @@
     <ClInclude Include="include\Camera.h" />
     <ClInclude Include="include\D3D12Util.h" />
     <ClInclude Include="include\d3dx12.h" />
+    <ClInclude Include="include\DxrShadowMap.h" />
     <ClInclude Include="include\FrameResource.h" />
     <ClInclude Include="include\GameTimer.h" />
     <ClInclude Include="include\GBuffer.h" />
@@ -33,6 +34,7 @@
   </ItemGroup>
   <ItemGroup>
     <None Include=".gitignore" />
+    <None Include="assets\shaders\DxrBackBuffer.hlsl" />
     <None Include="include\LowRenderer.inl" />
     <None Include="include\Renderer.inl" />
     <None Include="include\UploadBuffer.inl" />
@@ -48,6 +50,7 @@
     <ClCompile Include="src\Application.cpp" />
     <ClCompile Include="src\Camera.cpp" />
     <ClCompile Include="src\D3D12Util.cpp" />
+    <ClCompile Include="src\DxrShadowMap.cpp" />
     <ClCompile Include="src\FrameResource.cpp" />
     <ClCompile Include="src\GameTimer.cpp" />
     <ClCompile Include="src\GBuffer.cpp" />
@@ -111,6 +114,11 @@
   </ItemGroup>
   <ItemGroup>
     <None Include="assets\shaders\BackBuffer.hlsl">
+      <FileType>Document</FileType>
+    </None>
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="assets\shaders\ShadowRay.hlsl">
       <FileType>Document</FileType>
     </None>
   </ItemGroup>

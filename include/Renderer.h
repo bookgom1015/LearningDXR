@@ -24,6 +24,8 @@ struct AccelerationStructureBuffer;
 class ShadowMap;
 class GBuffer;
 
+class DxrShadowMap;
+
 struct RenderItem {
 	RenderItem() = default;
 
@@ -70,12 +72,13 @@ enum class ERasterRootSignatureLayout {
 	EConsts,
 	EObjSB,
 	EMatSB,
-	EMaps,
+	ESrvMaps,
 	Count
 };
 
 enum class ERasterRootConstantsLayout {
 	EInstanceID = 0,
+	EIsRaytracing,
 	Count
 };
 
@@ -92,6 +95,8 @@ enum class EGlobalRootSignatureLayout {
 	EMatSB,
 	EVertices,
 	EIndices,
+	ESrvMaps,
+	EUavMaps,
 	Count
 };
 
@@ -102,16 +107,22 @@ enum class ELocalRootSignatureLayout {
 enum class EDescriptors {
 	ES_Vertices = 0,
 	ES_Indices	= ES_Vertices + gNumGeometryBuffers,
-	EU_Output0	= ES_Indices + gNumGeometryBuffers,
-	EU_Output1,
-	EU_Output2,
-	ES_Font,
-	ES_Color,
+	ES_Font		= ES_Indices + gNumGeometryBuffers,
+
+	ES_Color, Srv_Start = ES_Color,
 	ES_Albedo,
 	ES_Normal,
 	ES_Depth,
 	ES_Specular,
 	ES_Shadow,
+	ES_DxrShadow, Srv_End = ES_DxrShadow,
+
+	EU_Output0,
+	EU_Output1,
+	EU_Output2,
+
+	EU_Shadow, Uav_Start = EU_Shadow, Uav_End = EU_Shadow,
+
 	Count
 };
 
@@ -195,13 +206,17 @@ protected:
 
 	// Drawing
 	bool Rasterize();
-	bool Raytrace();
-	bool DrawDebugLayer();
-	bool DrawImGui();
 	bool DrawRenderItems(const std::vector<RenderItem*>& ritems);
 	bool DrawShadowMap();
 	bool DrawGBuffer();
 	bool DrawBackBuffer();
+	bool DrawDebugLayer();
+	bool DrawImGui();
+
+	// Drawing for raytracing
+	bool Raytrace();
+	bool dxrDrawShadowMap();
+	bool dxrDrawBackBuffer();
 
 private:
 	bool bIsCleanedUp;
@@ -259,6 +274,8 @@ private:
 	std::unordered_map<std::string, Microsoft::WRL::ComPtr<ID3D12Resource>> mShaderTables;
 
 	int mGeometryBufferCount;
+
+	std::unique_ptr<DxrShadowMap> mDxrShadowMap;
 };
 
 #include "Renderer.inl"

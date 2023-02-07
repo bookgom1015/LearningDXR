@@ -52,6 +52,7 @@ float4 PS(VertexOut pin) : SV_Target{
 	case 1: return float4(gNormalMap.Sample(gsamLinearClamp, pin.TexC).rgb, 1.0f);
 	case 2: return float4(gDepthMap.Sample(gsamLinearClamp, pin.TexC).rrr, 1.0f);
 	case 3: return float4(gShadowMap.Sample(gsamLinearClamp, pin.TexC).rrr, 1.0f);
+	case 4: return float4(gDxrShadowMap.Sample(gsamLinearClamp, pin.TexC).rgb, 1.0f);
 	default: return (float4)1.0f;
 	}
 }
