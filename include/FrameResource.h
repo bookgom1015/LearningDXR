@@ -45,6 +45,27 @@ struct MaterialData {
 	DirectX::XMFLOAT4X4	MatTransform;
 };
 
+struct BlurConstants {
+	DirectX::XMFLOAT4X4	Proj;
+	DirectX::XMFLOAT4	BlurWeights[3];
+	float				BlurRadius;
+	float				ConstantPad0;
+	float				ConstantPad1;
+	float				ConstantPad2;
+};
+
+struct SsaoConstants {
+	DirectX::XMFLOAT4X4	View;
+	DirectX::XMFLOAT4X4	Proj;
+	DirectX::XMFLOAT4X4	InvProj;
+	DirectX::XMFLOAT4X4	ProjTex;
+	DirectX::XMFLOAT4	OffsetVectors[14];
+	float				OcclusionRadius;
+	float				OcclusionFadeStart;
+	float				OcclusionFadeEnd;
+	float				SurfaceEpsilon;
+};
+
 struct FrameResource {
 public:
 	FrameResource(
@@ -63,6 +84,8 @@ public:
 	UploadBuffer<PassConstants> PassCB;
 	UploadBuffer<ObjectData> ObjectSB;
 	UploadBuffer<MaterialData> MaterialSB;
+	UploadBuffer<BlurConstants> BlurCB;
+	UploadBuffer<SsaoConstants> SsaoCB;
 
 	UINT64 Fence;
 

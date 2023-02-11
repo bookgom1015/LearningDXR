@@ -49,6 +49,9 @@ Texture2D gDepthMap							: register(t3);
 Texture2D gSpecularMap						: register(t4);
 Texture2D gShadowMap						: register(t5);
 Texture2D gDxrShadowMap						: register(t6);
+Texture2D gAmbientMap0						: register(t7);
+Texture2D gAmbientMap1						: register(t8);
+Texture2D gRandomVector						: register(t9);
 
 float CalcShadowFactor(float4 shadowPosH) {
 	shadowPosH.xyz /= shadowPosH.w;

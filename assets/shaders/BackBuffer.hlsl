@@ -67,7 +67,11 @@ float4 PS(VertexOut pin) : SV_Target {
 	float4 albedoSample = gAlbedoMap.Sample(gsamPointClamp, pin.TexC);
 	float4 diffuseAlbedo = colorSample * albedoSample;
 	
-	float4 ambient = gAmbientLight * diffuseAlbedo;
+	float4 ssaoPosH = mul(posW, gViewProjTex);
+	ssaoPosH /= ssaoPosH.w;
+	float ambientAccess = gAmbientMap0.Sample(gsamLinearClamp, ssaoPosH.xy, 0.0f).r;
+
+	float4 ambient = ambientAccess * gAmbientLight * diffuseAlbedo;
 
 	float4 specular = gSpecularMap.Sample(gsamPointClamp, pin.TexC);
 	const float shiness = 1.0f - specular.a;

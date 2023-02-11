@@ -6,6 +6,7 @@ const int gNumFrameResources = 3;
 #include "GameTimer.h"
 #include "MathHelper.h"
 
+#include <array>
 #include <unordered_map>
 
 const std::wstring ShaderFilePathW = L".\\..\\..\\assets\\shaders\\";
@@ -23,6 +24,7 @@ struct AccelerationStructureBuffer;
 
 class ShadowMap;
 class GBuffer;
+class Ssao;
 
 class DxrShadowMap;
 
@@ -82,6 +84,42 @@ enum class ERasterRootConstantsLayout {
 	Count
 };
 
+enum class EUaBlurRootSignatureLayout {
+	EBlurPassCB = 0,
+	EConsts,
+	ENormalDepth,
+	EInput,
+	EOutput,
+	Count
+};
+
+enum class EUaBlurRootConstansLayout {
+	EHorizontal = 0,
+	Count
+};
+
+enum class ESsaoRootSignatureLayout {
+	ESsaoPassCB = 0,
+	ENormalDepth,
+	ERandomVector,
+	Count
+};
+
+enum class EBlurRootSignatureLayout {
+	EBlurPassCB = 0,
+	EConsts,
+	ENormalDepth,
+	EInput,
+	Count
+};
+
+enum class EBlurRootConstantsLayout {
+	EDotThreshold = 0,
+	EDepthThreshold,
+	EHorizontal,
+	Count
+};
+
 enum class EGizmoRootSignatureLayout {
 	EPassCB = 0,
 	Count
@@ -114,14 +152,18 @@ enum class EDescriptors {
 	ES_Normal,
 	ES_Depth,
 	ES_Specular,
-	ES_Shadow,
-	ES_DxrShadow, Srv_End = ES_DxrShadow,
+	ES_Shadow, 
+	ES_DxrShadow, 
+	ES_Ambient0, 
+	ES_Ambient1, 
+	ES_RandomVector, Srv_End = ES_RandomVector,
 
 	EU_Output0,
 	EU_Output1,
 	EU_Output2,
 
-	EU_Shadow, Uav_Start = EU_Shadow, Uav_End = EU_Shadow,
+	EU_Shadow, Uav_Start = EU_Shadow, 
+	EU_ShadowBlur, Uav_End = EU_ShadowBlur,
 
 	Count
 };
@@ -133,6 +175,8 @@ enum class ERtvHeapLayout {
 	EAlbedo,
 	ENormal,
 	ESpecular,
+	EAmbient0,
+	EAmbient1,
 	Count
 };
 
@@ -203,13 +247,18 @@ protected:
 	bool UpdatePassCB(const GameTimer& gt);
 	bool UpdateShadowPassCB(const GameTimer& gt);
 	bool UpdateMaterialCB(const GameTimer& gt);
+	bool UpdateBlurPassCB(const GameTimer& gt);
+	bool UpdateSsaoPassCB(const GameTimer& gt);
 
 	// Drawing
 	bool Rasterize();
 	bool DrawRenderItems(const std::vector<RenderItem*>& ritems);
 	bool DrawShadowMap();
 	bool DrawGBuffer();
+	bool DrawSsao();
 	bool DrawBackBuffer();
+
+
 	bool DrawDebugLayer();
 	bool DrawImGui();
 
@@ -243,8 +292,9 @@ private:
 	DirectX::BoundingSphere mSceneBounds;
 	DirectX::XMFLOAT3 mLightDir;
 
-	std::unique_ptr<ShadowMap> mShadowMap;
 	std::unique_ptr<GBuffer> mGBuffer;
+
+	std::array<DirectX::XMFLOAT4, 3> mBlurWeights;
 
 	//
 	// Rasterization
@@ -259,6 +309,17 @@ private:
 
 	D3D12_VIEWPORT mDebugViewport;
 	D3D12_RECT mDebugScissorRect;
+
+	std::unique_ptr<ShadowMap> mShadowMap;
+	std::unique_ptr<Ssao> mSsao;
+	float mSsaoRadius;
+	float mSsaoFadeStart;
+	float mSsaoFadeEnd;
+	float mSsaoEpsilon;
+	float mSsaoDotThreshold;
+	float mSsaoDepthThreshold;
+	int mNumSsaoBlurs;
+
 
 	//
 	// Raytracing
@@ -276,6 +337,8 @@ private:
 	int mGeometryBufferCount;
 
 	std::unique_ptr<DxrShadowMap> mDxrShadowMap;
+
+	int mNumDxrShadowBlurs;
 };
 
 #include "Renderer.inl"

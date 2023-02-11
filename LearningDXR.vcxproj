@@ -30,6 +30,7 @@
     <ClInclude Include="include\SBTGenerator.h" />
     <ClInclude Include="include\ShaderManager.h" />
     <ClInclude Include="include\ShadowMap.h" />
+    <ClInclude Include="include\Ssao.h" />
     <ClInclude Include="include\UploadBuffer.h" />
   </ItemGroup>
   <ItemGroup>
@@ -63,6 +64,7 @@
     <ClCompile Include="src\SBTGenerator.cpp" />
     <ClCompile Include="src\ShaderManager.cpp" />
     <ClCompile Include="src\ShadowMap.cpp" />
+    <ClCompile Include="src\Ssao.cpp" />
     <ClCompile Include="src\UploadBuffer.cpp" />
   </ItemGroup>
   <ItemGroup>
@@ -119,6 +121,21 @@
   </ItemGroup>
   <ItemGroup>
     <None Include="assets\shaders\ShadowRay.hlsl">
+      <FileType>Document</FileType>
+    </None>
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="assets\shaders\UnorderedAccessBlur.hlsl">
+      <FileType>Document</FileType>
+    </None>
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="assets\shaders\Ssao.hlsl">
+      <FileType>Document</FileType>
+    </None>
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="assets\shaders\Blur.hlsl">
       <FileType>Document</FileType>
     </None>
   </ItemGroup>

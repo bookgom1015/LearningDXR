@@ -232,7 +232,7 @@ void Application::OnKeyboardInput(UINT msg, WPARAM wParam, LPARAM lParam) {
 			SetWindowText(mhMainWnd, state ? RasterCaption : RaytraceCaption);
 		}
 			break;
-		case VK_TAB:
+		case 0x54: // T
 			if (mGameState == EGameStates::EGS_Play) {
 				mGameState = EGameStates::EGS_UI;
 				mRenderer->DisplayImGui(true);

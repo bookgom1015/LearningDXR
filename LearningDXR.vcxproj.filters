@@ -114,6 +114,9 @@
     <ClInclude Include="include\DxrShadowMap.h">
       <Filter>Header Files\Shading</Filter>
     </ClInclude>
+    <ClInclude Include="include\Ssao.h">
+      <Filter>Header Files\Shading</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <None Include="include\LowRenderer.inl">
@@ -169,6 +172,15 @@
       <Filter>Shader Files\Raytrace</Filter>
     </None>
     <None Include="assets\shaders\DxrBackBuffer.hlsl">
+      <Filter>Shader Files\Raster</Filter>
+    </None>
+    <None Include="assets\shaders\UnorderedAccessBlur.hlsl">
+      <Filter>Shader Files\Raster</Filter>
+    </None>
+    <None Include="assets\shaders\Ssao.hlsl">
+      <Filter>Shader Files\Raster</Filter>
+    </None>
+    <None Include="assets\shaders\Blur.hlsl">
       <Filter>Shader Files\Raster</Filter>
     </None>
   </ItemGroup>
@@ -243,6 +255,9 @@
       <Filter>Source Files\Shading</Filter>
     </ClCompile>
     <ClCompile Include="src\DxrShadowMap.cpp">
+      <Filter>Source Files\Shading</Filter>
+    </ClCompile>
+    <ClCompile Include="src\Ssao.cpp">
       <Filter>Source Files\Shading</Filter>
     </ClCompile>
   </ItemGroup>
