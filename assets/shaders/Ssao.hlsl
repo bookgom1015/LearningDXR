@@ -7,6 +7,7 @@ static const int gSampleCount = 14;
 
 cbuffer cbSsao : register(b0) {
 	float4x4	gView;
+	float4x4	gInvView;
 	float4x4	gProj;
 	float4x4	gInvProj;
 	float4x4	gProjTex;

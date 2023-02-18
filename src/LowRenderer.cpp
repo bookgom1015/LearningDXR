@@ -314,6 +314,7 @@ bool LowRenderer::OnResize() {
 	CD3DX12_CPU_DESCRIPTOR_HANDLE rtvHeapHandle(mRtvHeap->GetCPUDescriptorHandleForHeapStart());
 	for (UINT i = 0; i < SwapChainBufferCount; ++i) {
 		CheckHResult(mSwapChain->GetBuffer(i, IID_PPV_ARGS(&mSwapChainBuffer[i])));
+		mSwapChainBuffer[i]->SetName(L"BackBuffer");
 
 		md3dDevice->CreateRenderTargetView(mSwapChainBuffer[i].Get(), nullptr, rtvHeapHandle);
 		rtvHeapHandle.Offset(1, mRtvDescriptorSize);
@@ -346,6 +347,7 @@ bool LowRenderer::OnResize() {
 		&optClear,
 		IID_PPV_ARGS(mDepthStencilBuffer.GetAddressOf())
 	));
+	mDepthStencilBuffer->SetName(L"DepthStencilBuffer");
 
 	// Create descriptor to mip level 0 of entire resource using the format of the resource.
 	md3dDevice->CreateDepthStencilView(mDepthStencilBuffer.Get(), nullptr, DepthStencilView());
@@ -429,6 +431,7 @@ bool LowRenderer::CreateCommandObjects() {
 		nullptr,					// Initial PipelineStateObject
 		IID_PPV_ARGS(mCommandList.GetAddressOf())
 	));
+	mCommandList->SetName(L"SingleCommandList");
 
 	// Start off in a closed state.  This is because the first time we refer 
 	// to the command list we will Reset it, and it needs to be closed before

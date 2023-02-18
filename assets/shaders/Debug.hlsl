@@ -48,10 +48,11 @@ VertexOut VS(uint vid : SV_VertexID, uint instanceID : SV_InstanceID) {
 
 float4 PS(VertexOut pin) : SV_Target{
 	switch (pin.InstID) {
-	case 0: return float4(gColorMap.Sample(gsamLinearClamp, pin.TexC).rgb, 1.0f);
-	case 1: return float4(gNormalMap.Sample(gsamLinearClamp, pin.TexC).rgb, 1.0f);
-	case 2: return float4(gDepthMap.Sample(gsamLinearClamp, pin.TexC).rrr, 1.0f);
-	case 3: return float4(gAmbientMap0.Sample(gsamLinearClamp, pin.TexC).rrr, 1.0f);
+	case 0: return float4(gColorMap.Sample(gsamPointClamp, pin.TexC).rgb, 1.0f);
+	case 1: return float4(gNormalMap.Sample(gsamPointClamp, pin.TexC).rgb, 1.0f);
+	case 2: return float4(gVelocityMap.Sample(gsamPointClamp, pin.TexC).rg, 0.0f, 1.0f);
+	case 3: return float4(gAmbientMap0.Sample(gsamPointClamp, pin.TexC).rrr, 1.0f);
+	case 4: return float4(gDxrAmbientMap0.Sample(gsamPointClamp, pin.TexC).rrr, 1.0f);
 	default: return (float4)1.0f;
 	}
 }

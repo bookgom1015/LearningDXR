@@ -117,6 +117,9 @@
     <ClInclude Include="include\Ssao.h">
       <Filter>Header Files\Shading</Filter>
     </ClInclude>
+    <ClInclude Include="include\Rtao.h">
+      <Filter>Header Files\Shading</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <None Include="include\LowRenderer.inl">
@@ -135,16 +138,7 @@
     <None Include="assets\shaders\Default.hlsl">
       <Filter>Shader Files\Raster</Filter>
     </None>
-    <None Include="assets\shaders\ClosestHit.hlsl">
-      <Filter>Shader Files\Raytrace</Filter>
-    </None>
     <None Include="assets\shaders\DxrCommon.hlsli">
-      <Filter>Shader Files\Raytrace</Filter>
-    </None>
-    <None Include="assets\shaders\Miss.hlsl">
-      <Filter>Shader Files\Raytrace</Filter>
-    </None>
-    <None Include="assets\shaders\RayGen.hlsl">
       <Filter>Shader Files\Raytrace</Filter>
     </None>
     <None Include="assets\shaders\Gizmo.hlsl">
@@ -171,17 +165,29 @@
     <None Include="assets\shaders\ShadowRay.hlsl">
       <Filter>Shader Files\Raytrace</Filter>
     </None>
-    <None Include="assets\shaders\DxrBackBuffer.hlsl">
-      <Filter>Shader Files\Raster</Filter>
-    </None>
-    <None Include="assets\shaders\UnorderedAccessBlur.hlsl">
-      <Filter>Shader Files\Raster</Filter>
-    </None>
     <None Include="assets\shaders\Ssao.hlsl">
       <Filter>Shader Files\Raster</Filter>
     </None>
     <None Include="assets\shaders\Blur.hlsl">
       <Filter>Shader Files\Raster</Filter>
+    </None>
+    <None Include="assets\shaders\DefaultRay.hlsl">
+      <Filter>Shader Files\Raytrace</Filter>
+    </None>
+    <None Include="assets\shaders\Rtao.hlsl">
+      <Filter>Shader Files\Raytrace</Filter>
+    </None>
+    <None Include="assets\shaders\GroundTruthRtao.hlsl">
+      <Filter>Shader Files\Raytrace</Filter>
+    </None>
+    <None Include="assets\shaders\DxrBackBuffer.hlsl">
+      <Filter>Shader Files\Raytrace</Filter>
+    </None>
+    <None Include="assets\shaders\UnorderedAccessBlur.hlsl">
+      <Filter>Shader Files\Raytrace</Filter>
+    </None>
+    <None Include="assets\shaders\ComputeBlur.hlsl">
+      <Filter>Shader Files\Raytrace</Filter>
     </None>
   </ItemGroup>
   <ItemGroup>
@@ -258,6 +264,9 @@
       <Filter>Source Files\Shading</Filter>
     </ClCompile>
     <ClCompile Include="src\Ssao.cpp">
+      <Filter>Source Files\Shading</Filter>
+    </ClCompile>
+    <ClCompile Include="src\Rtao.cpp">
       <Filter>Source Files\Shading</Filter>
     </ClCompile>
   </ItemGroup>

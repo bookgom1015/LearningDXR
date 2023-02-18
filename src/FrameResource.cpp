@@ -20,6 +20,7 @@ bool FrameResource::Initialize() {
 	CheckIsValid(MaterialSB.Initialize(Device, MaterialCount, false));
 	CheckIsValid(BlurCB.Initialize(Device, 1, true));
 	CheckIsValid(SsaoCB.Initialize(Device, 1, true));
+	CheckIsValid(RtaoCB.Initialize(Device, 1, true));
 
 	return true;
 }

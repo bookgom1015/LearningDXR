@@ -5,23 +5,20 @@ const float GBuffer::ColorMapClearValues[4] = { 0.0f, 0.0f, 0.0f, 0.0f };
 const float GBuffer::AlbedoMapClearValues[4] = { 0.0f, 0.0f, 0.0f, 0.0f };
 const float GBuffer::NormalMapClearValues[4] = { 0.0f, 0.0f, 1.0f, 0.0f };
 const float GBuffer::SpecularMapClearValues[4] = { 0.0f, 0.0f, 0.0f, 1.0f };
+const float GBuffer::VelocityMapClearValues[2] = { 0.0f, 0.0f };
 
 GBuffer::GBuffer() {}
 
 GBuffer::~GBuffer() {}
 
-bool GBuffer::Initialize(
-	ID3D12Device* device, UINT width, UINT height,
-	DXGI_FORMAT colorMapFormat, DXGI_FORMAT normalMapFormat, DXGI_FORMAT depthMapFormat, DXGI_FORMAT specularMapFormat) {
+bool GBuffer::Initialize(ID3D12Device* device, UINT width, UINT height, DXGI_FORMAT backBufferFormat, DXGI_FORMAT depthMapFormat) {
 	md3dDevice = device;
 
 	mWidth = width;
 	mHeight = height;
 
-	mColorMapFormat = colorMapFormat;
-	mNormalMapFormat = normalMapFormat;
+	mColorMapFormat = backBufferFormat;
 	mDepthMapFormat = depthMapFormat;
-	mSpecularMapFormat = specularMapFormat;
 
 	CheckIsValid(BuildResource());
 
@@ -53,6 +50,10 @@ void GBuffer::BuildDescriptors(
 	mhSpecularMapGpuSrv = hGpuSrv.Offset(1, descSize);
 	mhSpecularMapCpuRtv = hCpuRtv.Offset(1, rtvDescSize);
 
+	mhVelocityMapCpuSrv = hCpuSrv.Offset(1, descSize);
+	mhVelocityMapGpuSrv = hGpuSrv.Offset(1, descSize);
+	mhVelocityMapCpuRtv = hCpuRtv.Offset(1, rtvDescSize);
+
 	BuildDescriptors(depth);
 }
 
@@ -81,37 +82,35 @@ void GBuffer::BuildDescriptors(ID3D12Resource* depth) {
 	rtvDesc.Texture2D.MipSlice = 0;
 	rtvDesc.Texture2D.PlaneSlice = 0;
 
-	// Creates a shader resource view for color map.
 	srvDesc.Format = mColorMapFormat;
 	md3dDevice->CreateShaderResourceView(mColorMap.Get(), &srvDesc, mhColorMapCpuSrv);
 
-	// Creates a render target view for color map.
 	rtvDesc.Format = mColorMapFormat;
 	md3dDevice->CreateRenderTargetView(mColorMap.Get(), &rtvDesc, mhColorMapCpuRtv);
 
-	// Creates a shader resource and render target views for albedo map.
 	md3dDevice->CreateShaderResourceView(mAlbedoMap.Get(), &srvDesc, mhAlbedoMapCpuSrv);
 	md3dDevice->CreateRenderTargetView(mAlbedoMap.Get(), &rtvDesc, mhAlbedoMapCpuRtv);
 
-	// Create a shader resource view for normal map.
-	srvDesc.Format = mNormalMapFormat;
+	srvDesc.Format = NormalMapFormat;
 	md3dDevice->CreateShaderResourceView(mNormalMap.Get(), &srvDesc, mhNormalMapCpuSrv);
 
-	// Create a render target view for normal map.
-	rtvDesc.Format = mNormalMapFormat;
+	rtvDesc.Format = NormalMapFormat;
 	md3dDevice->CreateRenderTargetView(mNormalMap.Get(), &rtvDesc, mhNormalMapCpuRtv);
 
-	// Create a shader resource view for depth map.
 	srvDesc.Format = mDepthMapFormat;
 	md3dDevice->CreateShaderResourceView(depth, &srvDesc, mhDepthMapCpuSrv);
 
-	// Create a shader resource view for specular map.
-	srvDesc.Format = mSpecularMapFormat;
+	srvDesc.Format = SpecularMapFormat;
 	md3dDevice->CreateShaderResourceView(mSpecularMap.Get(), &srvDesc, mhSpecularMapCpuSrv);
 
-	// Create a render target view for normal map.
-	rtvDesc.Format = mSpecularMapFormat;
+	rtvDesc.Format = SpecularMapFormat;
 	md3dDevice->CreateRenderTargetView(mSpecularMap.Get(), &rtvDesc, mhSpecularMapCpuRtv);
+
+	srvDesc.Format = VelocityMapFormat;
+	md3dDevice->CreateShaderResourceView(mVelocityMap.Get(), &srvDesc, mhVelocityMapCpuSrv);
+
+	rtvDesc.Format = VelocityMapFormat;
+	md3dDevice->CreateRenderTargetView(mVelocityMap.Get(), &rtvDesc, mhVelocityMapCpuRtv);
 }
 
 bool GBuffer::BuildResource() {
@@ -140,6 +139,7 @@ bool GBuffer::BuildResource() {
 			&optClear,
 			IID_PPV_ARGS(mColorMap.GetAddressOf())
 		));
+		mColorMap->SetName(L"ColorMap");
 	}
 	{
 		rscDesc.Format = mColorMapFormat;
@@ -154,11 +154,12 @@ bool GBuffer::BuildResource() {
 			&optClear,
 			IID_PPV_ARGS(mAlbedoMap.GetAddressOf())
 		));
+		mAlbedoMap->SetName(L"AlbedoMap");
 	}
 	{
-		rscDesc.Format = mNormalMapFormat;
+		rscDesc.Format = NormalMapFormat;
 
-		CD3DX12_CLEAR_VALUE optClear = CD3DX12_CLEAR_VALUE(mNormalMapFormat, NormalMapClearValues);
+		CD3DX12_CLEAR_VALUE optClear = CD3DX12_CLEAR_VALUE(NormalMapFormat, NormalMapClearValues);
 
 		CheckHResult(md3dDevice->CreateCommittedResource(
 			&CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_DEFAULT),
@@ -168,11 +169,12 @@ bool GBuffer::BuildResource() {
 			&optClear,
 			IID_PPV_ARGS(mNormalMap.GetAddressOf())
 		));
+		mNormalMap->SetName(L"NormalMap");
 	}
 	{
-		rscDesc.Format = mSpecularMapFormat;
+		rscDesc.Format = SpecularMapFormat;
 
-		CD3DX12_CLEAR_VALUE optClear = CD3DX12_CLEAR_VALUE(mSpecularMapFormat, SpecularMapClearValues);
+		CD3DX12_CLEAR_VALUE optClear = CD3DX12_CLEAR_VALUE(SpecularMapFormat, SpecularMapClearValues);
 
 		CheckHResult(md3dDevice->CreateCommittedResource(
 			&CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_DEFAULT),
@@ -182,6 +184,22 @@ bool GBuffer::BuildResource() {
 			&optClear,
 			IID_PPV_ARGS(mSpecularMap.GetAddressOf())
 		));
+		mSpecularMap->SetName(L"SpecularMap");
+	}
+	{
+		rscDesc.Format = VelocityMapFormat;
+
+		CD3DX12_CLEAR_VALUE optClear = CD3DX12_CLEAR_VALUE(VelocityMapFormat, VelocityMapClearValues);
+
+		CheckHResult(md3dDevice->CreateCommittedResource(
+			&CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_DEFAULT),
+			D3D12_HEAP_FLAG_NONE,
+			&rscDesc,
+			D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE,
+			&optClear,
+			IID_PPV_ARGS(mVelocityMap.GetAddressOf())
+		));
+		mVelocityMap->SetName(L"VelocityMap");
 	}
 
 	return true;

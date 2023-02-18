@@ -17,6 +17,7 @@ struct Light {
 
 struct ObjectData {
 	DirectX::XMFLOAT4X4 World;
+	DirectX::XMFLOAT4X4 PrevWorld;
 	DirectX::XMFLOAT4X4 TexTransform;
 	UINT				GeometryIndex;
 	int					MaterialIndex;
@@ -30,6 +31,7 @@ struct PassConstants {
 	DirectX::XMFLOAT4X4	ViewProj;
 	DirectX::XMFLOAT4X4	InvViewProj;
 	DirectX::XMFLOAT4X4 UnitViewProj;
+	DirectX::XMFLOAT4X4 PrevViewProj;
 	DirectX::XMFLOAT4X4 ViewProjTex;
 	DirectX::XMFLOAT4X4 ShadowTransform;
 	DirectX::XMFLOAT3	EyePosW;
@@ -56,6 +58,7 @@ struct BlurConstants {
 
 struct SsaoConstants {
 	DirectX::XMFLOAT4X4	View;
+	DirectX::XMFLOAT4X4	InvView;
 	DirectX::XMFLOAT4X4	Proj;
 	DirectX::XMFLOAT4X4	InvProj;
 	DirectX::XMFLOAT4X4	ProjTex;
@@ -64,6 +67,21 @@ struct SsaoConstants {
 	float				OcclusionFadeStart;
 	float				OcclusionFadeEnd;
 	float				SurfaceEpsilon;
+};
+
+struct RtaoConstants {
+	DirectX::XMFLOAT4X4	View;
+	DirectX::XMFLOAT4X4	InvView;
+	DirectX::XMFLOAT4X4	Proj;
+	DirectX::XMFLOAT4X4	InvProj;
+	float				OcclusionRadius;
+	float				OcclusionFadeStart;
+	float				OcclusionFadeEnd;
+	float				SurfaceEpsilon;
+	UINT				FrameCount;
+	UINT				SampleCount;
+	float				ConstantPad1;
+	float				ConstantPad2;
 };
 
 struct FrameResource {
@@ -86,6 +104,7 @@ public:
 	UploadBuffer<MaterialData> MaterialSB;
 	UploadBuffer<BlurConstants> BlurCB;
 	UploadBuffer<SsaoConstants> SsaoCB;
+	UploadBuffer<RtaoConstants> RtaoCB;
 
 	UINT64 Fence;
 

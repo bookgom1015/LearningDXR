@@ -122,6 +122,7 @@ bool Ssao::BuildResource() {
 		&optClear,
 		IID_PPV_ARGS(&mAmbientMap0)
 	));
+	mAmbientMap0->SetName(L"AmbientMap0");
 
 	CheckHResult(md3dDevice->CreateCommittedResource(
 		&CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_DEFAULT),
@@ -131,6 +132,7 @@ bool Ssao::BuildResource() {
 		&optClear,
 		IID_PPV_ARGS(&mAmbientMap1)
 	));
+	mAmbientMap1->SetName(L"AmbientMap1");
 
 	return true;
 }

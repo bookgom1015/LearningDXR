@@ -6,14 +6,6 @@
 
 typedef BuiltInTriangleIntersectionAttributes Attributes;
 
-struct HitInfo {
-	float4 Color;
-};
-
-struct ShadowHitInfo {
-	bool IsHit;
-};
-
 struct Vertex {
 	float3 PosW;
 	float3 NormalW;
@@ -23,6 +15,7 @@ struct Vertex {
 
 struct ObjectData {
 	float4x4	World;
+	float4x4	PrevWorld;
 	float4x4	TexTransform;
 	uint		GeometryIndex;
 	int			MaterialIndex;
@@ -40,7 +33,11 @@ struct MaterialData {
 //
 RWTexture2D<float4> gOutput					: register(u0);
 
-RWTexture2D<float4> gShadowMap				: register(u0, space2);
+RWTexture2D<float> gShadowMap0				: register(u0, space2);
+RWTexture2D<float> gShadowMap1				: register(u1, space2);
+RWTexture2D<float> gAmbientMap0				: register(u2, space2);
+RWTexture2D<float> gAmbientMap1				: register(u3, space2);
+RWTexture2D<float> gAccumulation			: register(u4, space2);
 
 RaytracingAccelerationStructure	gBVH		: register(t0);
 StructuredBuffer<ObjectData> gObjects		: register(t1);
@@ -55,6 +52,7 @@ Texture2D gAlbedoMap						: register(t1, space3);
 Texture2D gNormalMap						: register(t2, space3);
 Texture2D gDepthMap							: register(t3, space3);
 Texture2D gSpecularMap						: register(t4, space3);
+Texture2D gVelocityMap						: register(t5, space3);
 
 
 cbuffer cbPass	: register(b0) {
@@ -65,6 +63,7 @@ cbuffer cbPass	: register(b0) {
 	float4x4	gViewProj;
 	float4x4	gInvViewProj;
 	float4x4	gUnitViewProj;
+	float4x4	PrevViewProj;
 	float4x4	gViewProjTex;
 	float4x4	gShadowTransform;
 	float3		gEyePosW;

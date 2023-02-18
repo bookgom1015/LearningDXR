@@ -67,16 +67,16 @@ float4 PS(VertexOut pin) : SV_Target {
 	float4 albedoSample = gAlbedoMap.Sample(gsamPointClamp, pin.TexC);
 	float4 diffuseAlbedo = colorSample * albedoSample;
 	
-	float4 ambient = gAmbientLight * diffuseAlbedo;
+	float ambientAccess = gDxrAmbientMap0.Sample(gsamPointClamp, pin.TexC);
+
+	float4 ambient = ambientAccess * gAmbientLight * diffuseAlbedo;
 
 	float4 specular = gSpecularMap.Sample(gsamPointClamp, pin.TexC);
 	const float shiness = 1.0f - specular.a;
 	Material mat = { albedoSample, specular.rgb, shiness };
 
 	float3 shadowFactor = (float3)1.0f;
-	shadowFactor[0] = gDxrShadowMap.Sample(gsamPointClamp, pin.TexC);
-	//float4 shadowPosH = mul(posW, gShadowTransform);
-	//shadowFactor[0] = CalcShadowFactor(shadowPosH);
+	shadowFactor[0] = gDxrShadowMap0.Sample(gsamPointClamp, pin.TexC);
 
 	float4 directLight = ComputeLighting(gLights, mat, posW, normalW, toEyeW, shadowFactor);
 

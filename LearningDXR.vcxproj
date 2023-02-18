@@ -26,6 +26,7 @@
     <ClInclude Include="include\Mesh.h" />
     <ClInclude Include="include\Renderer.h" />
     <ClInclude Include="include\RenderMacros.h" />
+    <ClInclude Include="include\Rtao.h" />
     <ClInclude Include="include\RTXStructures.h" />
     <ClInclude Include="include\SBTGenerator.h" />
     <ClInclude Include="include\ShaderManager.h" />
@@ -60,6 +61,7 @@
     <ClCompile Include="src\LowRenderer.cpp" />
     <ClCompile Include="src\MathHelper.cpp" />
     <ClCompile Include="src\Renderer.cpp" />
+    <ClCompile Include="src\Rtao.cpp" />
     <ClCompile Include="src\RTXStructures.cpp" />
     <ClCompile Include="src\SBTGenerator.cpp" />
     <ClCompile Include="src\ShaderManager.cpp" />
@@ -68,9 +70,6 @@
     <ClCompile Include="src\UploadBuffer.cpp" />
   </ItemGroup>
   <ItemGroup>
-    <None Include="assets\shaders\ClosestHit.hlsl">
-      <FileType>Document</FileType>
-    </None>
     <None Include="assets\shaders\Common.hlsli">
       <FileType>Document</FileType>
     </None>
@@ -81,12 +80,6 @@
       <FileType>Document</FileType>
     </None>
     <None Include="assets\shaders\LightingUtil.hlsli">
-      <FileType>Document</FileType>
-    </None>
-    <None Include="assets\shaders\Miss.hlsl">
-      <FileType>Document</FileType>
-    </None>
-    <None Include="assets\shaders\RayGen.hlsl">
       <FileType>Document</FileType>
     </None>
     <None Include="assets\shaders\DxrCommon.hlsli">
@@ -136,6 +129,24 @@
   </ItemGroup>
   <ItemGroup>
     <None Include="assets\shaders\Blur.hlsl">
+      <FileType>Document</FileType>
+    </None>
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="assets\shaders\DefaultRay.hlsl">
+      <FileType>Document</FileType>
+    </None>
+    <None Include="assets\shaders\Rtao.hlsl">
+      <FileType>Document</FileType>
+    </None>
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="assets\shaders\GroundTruthRtao.hlsl">
+      <FileType>Document</FileType>
+    </None>
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="assets\shaders\ComputeBlur.hlsl">
       <FileType>Document</FileType>
     </None>
   </ItemGroup>

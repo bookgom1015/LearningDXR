@@ -3,6 +3,10 @@
 
 #include "DxrCommon.hlsli"
 
+struct ShadowHitInfo {
+	bool IsHit;
+};
+
 [shader("raygeneration")]
 void ShadowRayGen() {
 	float width, height;
@@ -45,22 +49,12 @@ void ShadowRayGen() {
 		float shadowFactor = payload.IsHit ? 0.0f : 1.0f;
 		float4 color = float4((float3)shadowFactor, 1.0f);
 
-		gShadowMap[launchIndex] = color;
-
-		//{
-		//	posH = mul(posW, gViewProj);
-		//	posH /= posH.w;
-		//
-		//	tex = float2(posH.x * 0.5f + 0.5f, -posH.y * 0.5f + 0.5f);
-		//	float3 sam = gColorMap.SampleLevel(gsamPointClamp, tex, 0).rgb;
-		//
-		//	gShadowMap[launchIndex] = float4(sam, 1.0f);
-		//}
+		gShadowMap0[launchIndex] = shadowFactor;
 	
 		return;
 	}
 
-	gShadowMap[launchIndex] = (float4)1.0f;
+	gShadowMap0[launchIndex] = 1.0f;
 }
 
 [shader("closesthit")]
@@ -69,7 +63,7 @@ void ShadowClosestHit(inout ShadowHitInfo payload, Attributes attrib) {
 }
 
 [shader("miss")]
-void ShadowMiss(inout ShadowHitInfo payload : SV_RayPayload) {
+void ShadowMiss(inout ShadowHitInfo payload) {
 	payload.IsHit = false;
 }
 

@@ -27,6 +27,7 @@ class GBuffer;
 class Ssao;
 
 class DxrShadowMap;
+class Rtao;
 
 struct RenderItem {
 	RenderItem() = default;
@@ -35,14 +36,14 @@ struct RenderItem {
 	// relative to the world space, which defines the position, orientation,
 	// and scale of the object in thw world.
 	DirectX::XMFLOAT4X4 World = MathHelper::Identity4x4();
-
+	DirectX::XMFLOAT4X4 PrevWolrd = MathHelper::Identity4x4();
 	DirectX::XMFLOAT4X4 TexTransform = MathHelper::Identity4x4();
 
 	// Dirty flag indicating the object data has changed and we need to update the constant buffer.
 	// Because we have an object cbuffer for each FrameResource, we have to apply the
 	// update to each FrameResource. Thus, when we modify object data we should set
 	// NumFrameDirty = gNumFrameResources so that each frame resource gets the update.
-	int NumFramesDirty = gNumFrameResources;
+	int NumFramesDirty = gNumFrameResources << 1;
 
 	// Index into GPU constant buffer corresponding to the ObjectCB for this render item.
 	UINT ObjSBIndex = -1;
@@ -75,12 +76,21 @@ enum class ERasterRootSignatureLayout {
 	EObjSB,
 	EMatSB,
 	ESrvMaps,
+	EUavMaps,
 	Count
 };
 
 enum class ERasterRootConstantsLayout {
 	EInstanceID = 0,
 	EIsRaytracing,
+	Count
+};
+
+enum class EComputeBlurRootSignatureLayout {
+	EBlurPassCB = 0,
+	ENormalDepth,
+	EInput,
+	EOutput,
 	Count
 };
 
@@ -125,7 +135,7 @@ enum class EGizmoRootSignatureLayout {
 	Count
 };
 
-enum class EGlobalRootSignatureLayout {
+enum class EDefaultGlobalRootSignatureLayout {
 	EOutput = 0,
 	EAccelerationStructure,
 	EPassCB,
@@ -138,8 +148,29 @@ enum class EGlobalRootSignatureLayout {
 	Count
 };
 
-enum class ELocalRootSignatureLayout {
+enum class EDefaultLocalRootSignatureLayout {
 	Count = 0
+};
+
+enum class ERtaoGlobalRootSignatureLayout {
+	EAccelerationStructure = 0,
+	ERtaoPassCB,
+	ENormalDepth,
+	EOutput,
+	Count
+};
+
+enum class EGroundTruthAORootSingatureLayout {
+	EAmbientMaps = 0,
+	ENormalDepth,
+	EVelocity,
+	EConsts,
+	Count
+};
+
+enum class EGroundTruthAORootConstantsLayout {
+	EAccumulation = 0,
+	Count
 };
 
 enum class EDescriptors {
@@ -152,18 +183,25 @@ enum class EDescriptors {
 	ES_Normal,
 	ES_Depth,
 	ES_Specular,
-	ES_Shadow, 
-	ES_DxrShadow, 
+	ES_Velocity,
+	ES_Shadow,
+	ES_DxrShadow0,
+	ES_DxrShadow1,
 	ES_Ambient0, 
 	ES_Ambient1, 
-	ES_RandomVector, Srv_End = ES_RandomVector,
+	ES_RandomVector, 
+	ES_DxrAmbient0,
+	ES_DxrAmbient1, Srv_End = ES_DxrAmbient1,
 
 	EU_Output0,
 	EU_Output1,
 	EU_Output2,
 
-	EU_Shadow, Uav_Start = EU_Shadow, 
-	EU_ShadowBlur, Uav_End = EU_ShadowBlur,
+	EU_DxrShadow0, Uav_Start = EU_DxrShadow0,
+	EU_DxrShadow1,
+	EU_DxrAmbient0,
+	EU_DxrAmbient1,
+	EU_Accumulation, Uav_End = EU_Accumulation,
 
 	Count
 };
@@ -175,6 +213,7 @@ enum class ERtvHeapLayout {
 	EAlbedo,
 	ENormal,
 	ESpecular,
+	EVelocity,
 	EAmbient0,
 	EAmbient1,
 	Count
@@ -249,6 +288,7 @@ protected:
 	bool UpdateMaterialCB(const GameTimer& gt);
 	bool UpdateBlurPassCB(const GameTimer& gt);
 	bool UpdateSsaoPassCB(const GameTimer& gt);
+	bool UpdateRtaoPassCB(const GameTimer& gt);
 
 	// Drawing
 	bool Rasterize();
@@ -265,6 +305,7 @@ protected:
 	// Drawing for raytracing
 	bool Raytrace();
 	bool dxrDrawShadowMap();
+	bool dxrDrawRtao();
 	bool dxrDrawBackBuffer();
 
 private:
@@ -320,7 +361,6 @@ private:
 	float mSsaoDepthThreshold;
 	int mNumSsaoBlurs;
 
-
 	//
 	// Raytracing
 	//
@@ -337,6 +377,13 @@ private:
 	int mGeometryBufferCount;
 
 	std::unique_ptr<DxrShadowMap> mDxrShadowMap;
+	std::unique_ptr<Rtao> mRtao;
+	float mRtaoRadius;
+	float mRtaoFadeStart;
+	float mRtaoFadeEnd;
+	float mRtaoEpsilon;	
+	UINT mRtaoAccum;
+	UINT mRtaoSampleCount;
 
 	int mNumDxrShadowBlurs;
 };
