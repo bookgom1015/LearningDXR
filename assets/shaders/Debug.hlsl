@@ -48,12 +48,19 @@ VertexOut VS(uint vid : SV_VertexID, uint instanceID : SV_InstanceID) {
 
 float4 PS(VertexOut pin) : SV_Target{
 	switch (pin.InstID) {
-	case 0: return float4(gColorMap.Sample(gsamPointClamp, pin.TexC).rgb, 1.0f);
-	case 1: return float4(gNormalMap.Sample(gsamPointClamp, pin.TexC).rgb, 1.0f);
-	case 2: return float4(gVelocityMap.Sample(gsamPointClamp, pin.TexC).rg, 0.0f, 1.0f);
-	case 3: return float4(gAmbientMap0.Sample(gsamPointClamp, pin.TexC).rrr, 1.0f);
-	case 4: return float4(gDxrAmbientMap0.Sample(gsamPointClamp, pin.TexC).rrr, 1.0f);
-	default: return (float4)1.0f;
+	case 0: {
+		uint width, height;
+		guLinearDepthDerivativesMap.GetDimensions(width, height);
+		return float4(guLinearDepthDerivativesMap[uint2(pin.TexC.x * width - 0.5f, pin.TexC.y * height - 0.5f)], 0.0f, 1.0f);
+	}
+	case 1: {
+		uint width, height;
+		guDxrAmbientMap0.GetDimensions(width, height);
+		return float4(guDxrAmbientMap0[uint2(pin.TexC.x * width - 0.5f, pin.TexC.y * height - 0.5f)].rrr, 1.0f);
+	}
+	case 2: return float4(gDxrLocalMeanVarianceMap0.Sample(gsamPointClamp, pin.TexC).rrr, 1.0f);
+	case 3: return float4(gDxrLocalMeanVarianceMap0.Sample(gsamPointClamp, pin.TexC).ggg, 1.0f);
+	default: return (float4)0.0f;
 	}
 }
 

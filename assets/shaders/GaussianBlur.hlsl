@@ -1,16 +1,15 @@
-#ifndef __BLUR_HLSL__
-#define __BLUR_HLSL__
+#ifndef __GAUSSIANBLUR_HLSL__
+#define __GAUSSIANBLUR_HLSL__
 
+#ifndef HLSL
+#define HLSL
+#endif
+
+#include "./../../include/HlslCompaction.h"
+#include "ShadingHelpers.hlsli"
 #include "Samplers.hlsli"
 
-cbuffer cbBlur : register(b0) {
-	float4x4	gProj;
-	float4		gBlurWeights[3];
-	float		gBlurRadius;
-	float		gConstantPad0;
-	float		gConstantPad1;
-	float		gConstantPad2;
-}
+ConstantBuffer<BlurConstants> cbBlur : register(b0);
 
 cbuffer cbRootConstants : register(b1) {
 	float	gDotThreshold;
@@ -18,9 +17,9 @@ cbuffer cbRootConstants : register(b1) {
 	bool	gHorizontalBlur;
 };
 
-Texture2D gNormalMap	: register(t0);
-Texture2D gDepthMap		: register(t1);
-Texture2D gInputMap		: register(t2);
+Texture2D<float3> gNormalMap	: register(t0);
+Texture2D<float> gDepthMap		: register(t1);
+Texture2D<float4> gInputMap		: register(t2);
 
 static const float2 gTexCoords[6] = {
 	float2(0.0f, 1.0f),
@@ -47,18 +46,12 @@ VertexOut VS(uint vid : SV_VertexID) {
 	return vout;
 }
 
-float NdcDepthToViewDepth(float z_ndc) {
-	// z_ndc = A + B/viewZ, where gProj[2,2]=A and gProj[3,2]=B.
-	float viewZ = gProj[3][2] / (z_ndc - gProj[2][2]);
-	return viewZ;
-}
-
 float4 PS(VertexOut pin) : SV_Target {
 	// unpack into float array.
 	float blurWeights[12] = {
-		gBlurWeights[0].x, gBlurWeights[0].y, gBlurWeights[0].z, gBlurWeights[0].w,
-		gBlurWeights[1].x, gBlurWeights[1].y, gBlurWeights[1].z, gBlurWeights[1].w,
-		gBlurWeights[2].x, gBlurWeights[2].y, gBlurWeights[2].z, gBlurWeights[2].w,
+		cbBlur.BlurWeights[0].x, cbBlur.BlurWeights[0].y, cbBlur.BlurWeights[0].z, cbBlur.BlurWeights[0].w,
+		cbBlur.BlurWeights[1].x, cbBlur.BlurWeights[1].y, cbBlur.BlurWeights[1].z, cbBlur.BlurWeights[1].w,
+		cbBlur.BlurWeights[2].x, cbBlur.BlurWeights[2].y, cbBlur.BlurWeights[2].z, cbBlur.BlurWeights[2].w,
 	};
 
 	uint width, height;
@@ -72,23 +65,23 @@ float4 PS(VertexOut pin) : SV_Target {
 	else texOffset = float2(0.0f, dy);
 
 	// The center value always contributes to the sum.
-	float4 color = blurWeights[gBlurRadius] * gInputMap.Sample(gsamPointClamp, pin.TexC);
-	float totalWeight = blurWeights[gBlurRadius];
+	float4 color = blurWeights[cbBlur.BlurRadius] * gInputMap.Sample(gsamLinearClamp, pin.TexC);
+	float totalWeight = blurWeights[cbBlur.BlurRadius];
 
 #ifndef NON_BILATERAL
-	float3 centerNormal = gNormalMap.Sample(gsamPointClamp, pin.TexC).xyz;
-	float centerDepth = NdcDepthToViewDepth(gDepthMap.Sample(gsamDepthMap, pin.TexC).r);
+	float3 centerNormal = gNormalMap.Sample(gsamPointClamp, pin.TexC);
+	float centerDepth = NdcDepthToViewDepth(gDepthMap.Sample(gsamDepthMap, pin.TexC), cbBlur.Proj);
 #endif 
 
-	for (int i = -gBlurRadius; i <= gBlurRadius; ++i) {
+	for (int i = -cbBlur.BlurRadius; i <= cbBlur.BlurRadius; ++i) {
 		// We already added in the center weight.
 		if (i == 0) continue;
 
 		float2 tex = pin.TexC + i * texOffset;
 
 #ifndef NON_BILATERAL
-		float3 neighborNormal = gNormalMap.Sample(gsamPointClamp, tex).xyz;
-		float neighborDepth = NdcDepthToViewDepth(gDepthMap.Sample(gsamDepthMap, tex).r);
+		float3 neighborNormal = normalize(gNormalMap.Sample(gsamPointClamp, tex));
+		float neighborDepth = NdcDepthToViewDepth(gDepthMap.Sample(gsamDepthMap, tex), cbBlur.Proj);
 
 		//
 		// If the center value and neighbor values differ too much (either in 
@@ -96,17 +89,17 @@ float4 PS(VertexOut pin) : SV_Target {
 		// We discard such samples from the blur.
 		//
 		if (dot(neighborNormal, centerNormal) >= gDotThreshold && abs(neighborDepth - centerDepth) <= gDepthThresHold) {
-			float weight = blurWeights[i + gBlurRadius];
+			float weight = blurWeights[i + cbBlur.BlurRadius];
 
 			// Add neighbor pixel to blur.
-			color += weight * gInputMap.Sample(gsamPointClamp, tex);
+			color += weight * gInputMap.Sample(gsamLinearClamp, tex);
 
 			totalWeight += weight;
 		}
 #else
-		float weight = blurWeights[i + gBlurRadius];
+		float weight = blurWeights[i + cbBlur.BlurRadius];
 
-		color += weight * gInputMap.Sample(gsamPointClamp, tex);
+		color += weight * gInputMap.Sample(gsamLinearClamp, tex);
 
 		totalWeight += weight;
 #endif
@@ -116,4 +109,4 @@ float4 PS(VertexOut pin) : SV_Target {
 	return color / totalWeight;
 }
 
-#endif // __BLUR_HLSL__
+#endif // __GAUSSIANBLUR_HLSL__

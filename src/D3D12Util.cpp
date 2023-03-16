@@ -149,3 +149,23 @@ D3D12_GPU_DESCRIPTOR_HANDLE D3D12Util::GetGpuHandle(ID3D12DescriptorHeap* descHe
 	handle.Offset(index, descriptorSize);
 	return handle;
 }
+
+void D3D12Util::UavBarrier(ID3D12GraphicsCommandList* cmdList, ID3D12Resource* resource) {
+	D3D12_RESOURCE_BARRIER uavBarrier;
+	uavBarrier.Type = D3D12_RESOURCE_BARRIER_TYPE_UAV;
+	uavBarrier.UAV.pResource = resource;
+	uavBarrier.Flags = D3D12_RESOURCE_BARRIER_FLAG_NONE;
+	cmdList->ResourceBarrier(1, &uavBarrier);
+}
+
+void D3D12Util::UavBarriers(ID3D12GraphicsCommandList* cmdList, ID3D12Resource* resource[], size_t length) {
+	std::vector<D3D12_RESOURCE_BARRIER> uavBarriers;
+	for (size_t i = 0; i < length; ++i) {
+		D3D12_RESOURCE_BARRIER uavBarrier;
+		uavBarrier.Type = D3D12_RESOURCE_BARRIER_TYPE_UAV;
+		uavBarrier.UAV.pResource = resource[i];
+		uavBarrier.Flags = D3D12_RESOURCE_BARRIER_FLAG_NONE;
+		uavBarriers.push_back(uavBarrier);
+	}
+	cmdList->ResourceBarrier(static_cast<UINT>(uavBarriers.size()), uavBarriers.data());
+}

@@ -1,69 +1,71 @@
 #ifndef __COMMON_HLSLI__
 #define __COMMON_HLSLI__
 
+#ifndef HLSL
+#define HLSL
+#endif
+
+#include "./../../include/HlslCompaction.h"
 #include "LightingUtil.hlsli"
 #include "Samplers.hlsli"
 
-struct ObjectData {
-	float4x4	World;
-	float4x4	PrevWorld;
-	float4x4	TexTransform;
-	uint		GeometryIndex;
-	int			MaterialIndex;
-};
-
-struct MaterialData {
-	float4		DiffuseAlbedo;
-	float3		FresnelR0;
-	float		Roughness;
-	float4x4	MatTransform;
-};
-
-cbuffer cbPass : register(b0) {
-	float4x4	gView;
-	float4x4	gInvView;
-	float4x4	gProj;
-	float4x4	gInvProj;
-	float4x4	gViewProj;
-	float4x4	gInvViewProj;
-	float4x4	gUnitViewProj;
-	float4x4	gPrevViewProj;
-	float4x4	gViewProjTex;
-	float4x4	gShadowTransform;
-	float3		gEyePosW;
-	float		gPassConstantsPad0;
-	float4		gAmbientLight;
-	Light		gLights[MaxLights];
-};
+ConstantBuffer<PassConstants> cbPass : register(b0);
 
 cbuffer cbRootConstants : register(b1) {
 	uint gInstanceID;
 	bool gIsRaytracing;
 }
 
-StructuredBuffer<ObjectData> gObjects		: register(t0, space1);
-StructuredBuffer<MaterialData> gMaterials	: register(t0, space2);
+StructuredBuffer<ObjectData> gObjects										: register(t0, space1);
+StructuredBuffer<MaterialData> gMaterials									: register(t0, space2);
 
-Texture2D gColorMap							: register(t0);
-Texture2D gAlbedoMap						: register(t1);
-Texture2D gNormalMap						: register(t2);
-Texture2D gDepthMap							: register(t3);
-Texture2D gSpecularMap						: register(t4);
-Texture2D gVelocityMap						: register(t5);
-Texture2D gShadowMap						: register(t6);
-Texture2D gDxrShadowMap0					: register(t7);
-Texture2D gDxrShadowMap1					: register(t8);
-Texture2D gAmbientMap0						: register(t9);
-Texture2D gAmbientMap1						: register(t10);
-Texture2D gRandomVector						: register(t11);
-Texture2D gDxrAmbientMap0					: register(t12);
-Texture2D gDxrAmbientMap1					: register(t13);
+Texture2D gColorMap														: register(t0);
+Texture2D gAlbedoMap													: register(t1);
+Texture2D gNormalDepthMap												: register(t2);
+Texture2D gDepthMap														: register(t3);
+Texture2D gSpecularMap													: register(t4);
+Texture2D gVelocityMap													: register(t5);
+Texture2D gReprojectedNormalDepthMap									: register(t6);
+Texture2D gShadowMap													: register(t7);
+Texture2D gDxrShadowMap0												: register(t8);
+Texture2D gDxrShadowMap1												: register(t9);
+Texture2D gAmbientMap0													: register(t10);
+Texture2D gAmbientMap1													: register(t11);
+Texture2D gRandomVector													: register(t12);
+Texture2D gDxrAmbientMap0												: register(t13);
+Texture2D gCachedNormalDepthMap											: register(t14);
+Texture2D gDisocclusionBlurStrengthMap									: register(t15);
+Texture2D gDxrTsppMap0													: register(t16);
+Texture2D gDxrTsppMap1													: register(t17);
+Texture2D gDxrTemporalAOCoefficientMap0									: register(t18);
+Texture2D gDxrTemporalAOCoefficientMap1									: register(t19);
+Texture2D gDxrCoefficientSquaredMeanMap0								: register(t20);
+Texture2D gDxrCoefficientSquaredMeanMap1								: register(t21);
+Texture2D gDxrRayHitDistanceMap0										: register(t22);
+Texture2D gDxrRayHitDistanceMap1										: register(t23);
+Texture2D gDxrLocalMeanVarianceMap0										: register(t24);
+Texture2D gDxrLocalMeanVarianceMap1										: register(t25);
+Texture2D gDxrVarianceMap0												: register(t26);
+Texture2D gDxrVarianceMap1												: register(t27);
 
-RWTexture2D<float> guDxrShadowMap0			: register(u0);
-RWTexture2D<float> guDxrShadowMap1			: register(u1);
-RWTexture2D<float> guDxrAmbientMap0			: register(u2);
-RWTexture2D<float> guDxrAmbientMap1			: register(u3);
-RWTexture2D<uint> guAccumulation			: register(u4);
+RWTexture2D<float> guDxrShadowMap0										: register(u0);
+RWTexture2D<float> guDxrShadowMap1										: register(u1);
+RWTexture2D<float> guDxrAmbientMap0										: register(u2);
+RWTexture2D<float2> guLinearDepthDerivativesMap							: register(u3);
+RWTexture2D<uint4> guDxrTsppCoefficientSquaredMeanRayHitDistanceMap		: register(u4);
+RWTexture2D<uint> guDisocclusionBlurStrengthMap							: register(u5);
+RWTexture2D<uint> guDxrTsppMap0											: register(u6);
+RWTexture2D<uint> guDxrTsppMap1											: register(u7);
+RWTexture2D<float> guTemporalAOCoefficientMap0							: register(u8);
+RWTexture2D<float> guTemporalAOCoefficientMap1							: register(u9);
+RWTexture2D<float> guDxrCoefficientSquaredMeanMap0						: register(u10);
+RWTexture2D<float> guDxrCoefficientSquaredMeanMap1						: register(u11);
+RWTexture2D<float> guDxrRayHitDistanceMap0								: register(u12);
+RWTexture2D<float> guDxrRayHitDistanceMap1								: register(u13);
+RWTexture2D<float2> guDxrLocalMeanVarianceMap0							: register(u14);
+RWTexture2D<float2> guDxrLocalMeanVarianceMap1							: register(u15);
+RWTexture2D<float> guDxrVarianceMap0									: register(u16);
+RWTexture2D<float> guDxrVarianceMap1									: register(u17);
 
 float CalcShadowFactor(float4 shadowPosH) {
 	shadowPosH.xyz /= shadowPosH.w;
@@ -88,22 +90,6 @@ float CalcShadowFactor(float4 shadowPosH) {
 	}
 
 	return percentLit / 9.0f;
-}
-
-float NdcDepthToViewDepth(float z_ndc) {
-	// z_ndc = A + B/viewZ, where gProj[2,2]=A and gProj[3,2]=B.
-	float viewZ = gProj[3][2] / (z_ndc - gProj[2][2]);
-	return viewZ;
-}
-
-float2 CalcVelocity(float4 curr_pos, float4 prev_pos) {
-	curr_pos.xy = (curr_pos.xy + (float2)1.0f) / 2.0f;
-	curr_pos.y = 1.0f - curr_pos.y;
-
-	prev_pos.xy = (prev_pos.xy + (float2)1.0f) / 2.0f;
-	prev_pos.y = 1.0f - prev_pos.y;
-
-	return (curr_pos - prev_pos).xy;
 }
 
 #endif // __COMMON_HLSLI__

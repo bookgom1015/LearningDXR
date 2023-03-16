@@ -66,7 +66,7 @@ bool ShadowMap::BuildResource() {
 	texDesc.Flags = D3D12_RESOURCE_FLAG_ALLOW_DEPTH_STENCIL;
 
 	D3D12_CLEAR_VALUE optClear;
-	optClear.Format = DXGI_FORMAT_D24_UNORM_S8_UINT;
+	optClear.Format = ShadowMapFormat;
 	optClear.DepthStencil.Depth = 1.0f;
 	optClear.DepthStencil.Stencil = 0;
 

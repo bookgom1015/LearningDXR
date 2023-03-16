@@ -85,9 +85,7 @@ private:
 
 private:
 	bool bIsCleanedUp = false;
-
-	UINT mRefreshRate;
-
+	
 	UINT mClientWidth;
 	UINT mClientHeight;
 
@@ -115,7 +113,7 @@ protected:
 	Microsoft::WRL::ComPtr<IDXGIFactory4> mdxgiFactory;
 	Microsoft::WRL::ComPtr<ID3D12Device5> md3dDevice;
 
-	Microsoft::WRL::ComPtr<IDXGISwapChain> mSwapChain;
+	Microsoft::WRL::ComPtr<IDXGISwapChain3> mSwapChain;
 	Microsoft::WRL::ComPtr<ID3D12Resource> mSwapChainBuffer[SwapChainBufferCount];
 	Microsoft::WRL::ComPtr<ID3D12Resource> mDepthStencilBuffer;
 
@@ -133,6 +131,8 @@ protected:
 
 	D3D12_VIEWPORT mScreenViewport;
 	D3D12_RECT mScissorRect;
+
+	IDXGIAdapter* mAdapter;
 };
 
 #include "LowRenderer.inl"

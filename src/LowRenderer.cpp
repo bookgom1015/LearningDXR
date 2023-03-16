@@ -5,7 +5,7 @@
 using namespace Microsoft::WRL;
 
 namespace {
-	void LogAdapters(IDXGIFactory4* pFactory) {
+	void LogAdapters(IDXGIFactory* pFactory) {
 		UINT i = 0;
 		IDXGIAdapter* adapter = nullptr;
 		std::vector<IDXGIAdapter*> adapterList;
@@ -29,6 +29,15 @@ namespace {
 #endif
 	}
 
+	void GetAdapters(IDXGIFactory* pFactory, std::vector<IDXGIAdapter*>& adapters) {
+		UINT i = 0;
+		IDXGIAdapter* adapter = nullptr;
+		while (pFactory->EnumAdapters(i, &adapter) != DXGI_ERROR_NOT_FOUND) {
+			adapters.push_back(adapter);
+			++i;
+		}
+	}
+
 	void LogOutputDisplayModes(IDXGIOutput* pOutput, DXGI_FORMAT format) {
 		UINT count = 0;
 		UINT flags = 0;
@@ -50,10 +59,10 @@ namespace {
 		}
 	}
 
-	void LogAdapterOutputs(IDXGIAdapter* pAapter, DXGI_FORMAT format) {
+	void LogAdapterOutputs(IDXGIAdapter* pAdapter, DXGI_FORMAT format) {
 		UINT i = 0;
 		IDXGIOutput* output = nullptr;
-		while (pAapter->EnumOutputs(i, &output) != DXGI_ERROR_NOT_FOUND) {
+		while (pAdapter->EnumOutputs(i, &output) != DXGI_ERROR_NOT_FOUND) {
 			DXGI_OUTPUT_DESC desc;
 			output->GetDesc(&desc);
 
@@ -64,6 +73,15 @@ namespace {
 			LogOutputDisplayModes(output, format);
 
 			ReleaseCom(output);
+			++i;
+		}
+	}
+
+	void GetAdapterOutputs(IDXGIAdapter* pAdapter, std::vector<IDXGIOutput*>& outputs) {
+		UINT i = 0;
+		IDXGIOutput* output = nullptr;
+		while (pAdapter->EnumOutputs(i, &output) != DXGI_ERROR_NOT_FOUND) {
+			outputs.push_back(output);
 			++i;
 		}
 	}
@@ -105,7 +123,6 @@ namespace {
 }
 
 LowRenderer::LowRenderer() {
-	mRefreshRate = 0;
 	mClientWidth = 0;
 	mClientHeight = 0;
 	mRtvDescriptorSize = 0;
@@ -259,6 +276,8 @@ bool LowRenderer::InitDirect3D() {
 			adapter->GetDesc(&desc);
 			WLogln(desc.Description, L" is selected");
 #endif
+			mAdapter = adapter;
+
 			break;
 		}
 	}
@@ -407,9 +426,11 @@ void LowRenderer::SortAdapters(Adapters& map) {
 }
 
 bool LowRenderer::CreateDebugObjects() {
+#if _DEBUG
 	CheckHResult(md3dDevice->QueryInterface(IID_PPV_ARGS(&mInfoQueue)));
 
 	CheckHResult(mInfoQueue->RegisterMessageCallback(D3D12MessageCallback, D3D12_MESSAGE_CALLBACK_IGNORE_FILTERS, NULL, &mCallbakCookie));
+#endif 
 
 	return true;
 }
@@ -445,25 +466,28 @@ bool LowRenderer::CreateSwapChain() {
 	// Release the previous swapchain we will be recreating.
 	mSwapChain.Reset();
 
-	DXGI_SWAP_CHAIN_DESC sd;
-	sd.BufferDesc.Width = mClientWidth;
-	sd.BufferDesc.Height = mClientHeight;
-	sd.BufferDesc.RefreshRate.Numerator = mRefreshRate;
-	sd.BufferDesc.RefreshRate.Denominator = 1;
-	sd.BufferDesc.Format = BackBufferFormat;
-	sd.BufferDesc.ScanlineOrdering = DXGI_MODE_SCANLINE_ORDER_UNSPECIFIED;
-	sd.BufferDesc.Scaling = DXGI_MODE_SCALING_UNSPECIFIED;
-	sd.SampleDesc.Count = 1;
-	sd.SampleDesc.Quality = 0;
-	sd.BufferUsage = DXGI_USAGE_RENDER_TARGET_OUTPUT;
-	sd.BufferCount = SwapChainBufferCount;
-	sd.OutputWindow = mhMainWnd;
-	sd.Windowed = true;
-	sd.SwapEffect = DXGI_SWAP_EFFECT_FLIP_DISCARD;
-	sd.Flags = DXGI_SWAP_CHAIN_FLAG_ALLOW_MODE_SWITCH;
+	DXGI_SWAP_CHAIN_DESC1 swapChainDesc = {};
+	swapChainDesc.Width = mClientWidth;
+	swapChainDesc.Height = mClientHeight;
+	swapChainDesc.Format = BackBufferFormat;
+	swapChainDesc.Stereo = FALSE;
+	swapChainDesc.SampleDesc.Count = 1;
+	swapChainDesc.SampleDesc.Quality = 0;
+	swapChainDesc.BufferUsage = DXGI_USAGE_RENDER_TARGET_OUTPUT;
+	swapChainDesc.BufferCount = SwapChainBufferCount;
+	swapChainDesc.Scaling = DXGI_SCALING_NONE;
+	swapChainDesc.SwapEffect = DXGI_SWAP_EFFECT_FLIP_DISCARD;
+	swapChainDesc.AlphaMode = DXGI_ALPHA_MODE_IGNORE;
+	swapChainDesc.Flags = DXGI_SWAP_CHAIN_FLAG_ALLOW_MODE_SWITCH;
 
-	// Note: Swap chain uses queue to perfrom flush.
-	CheckHResult(mdxgiFactory->CreateSwapChain(mCommandQueue.Get(), &sd, mSwapChain.GetAddressOf()));
+	DXGI_SWAP_CHAIN_FULLSCREEN_DESC fsSwapChainDesc = {};
+	fsSwapChainDesc.Windowed = TRUE;
+	fsSwapChainDesc.RefreshRate.Numerator = 0;
+	fsSwapChainDesc.RefreshRate.Denominator = 0;
+
+	ComPtr<IDXGISwapChain1> swapChain;
+	CheckHResult(mdxgiFactory->CreateSwapChainForHwnd(mCommandQueue.Get(), mhMainWnd, &swapChainDesc, &fsSwapChainDesc, nullptr, swapChain.GetAddressOf()));
+	swapChain->QueryInterface(IID_PPV_ARGS(&mSwapChain));
 
 	return true;
 }

@@ -1,6 +1,11 @@
 #ifndef __DXRCOMMON_HLSLI__
 #define __DXRCOMMON_HLSLI__
 
+#ifndef HLSL
+#define HLSL
+#endif
+
+#include "./../../include/HlslCompaction.h"
 #include "LightingUtil.hlsli"
 #include "Samplers.hlsli"
 
@@ -13,31 +18,27 @@ struct Vertex {
 	float3 TangentW;
 };
 
-struct ObjectData {
-	float4x4	World;
-	float4x4	PrevWorld;
-	float4x4	TexTransform;
-	uint		GeometryIndex;
-	int			MaterialIndex;
-};
-
-struct MaterialData {
-	float4		DiffuseAlbedo;
-	float3		FresnelR0;
-	float		Roughness;
-	float4x4	MatTransform;
-};
-
 //
 // Global root signatures
 //
-RWTexture2D<float4> gOutput					: register(u0);
-
-RWTexture2D<float> gShadowMap0				: register(u0, space2);
-RWTexture2D<float> gShadowMap1				: register(u1, space2);
-RWTexture2D<float> gAmbientMap0				: register(u2, space2);
-RWTexture2D<float> gAmbientMap1				: register(u3, space2);
-RWTexture2D<float> gAccumulation			: register(u4, space2);
+RWTexture2D<float> gShadowMap0											: register(u0);
+RWTexture2D<float> gShadowMap1											: register(u1);
+RWTexture2D<float> gAmbientMap0											: register(u2);
+RWTexture2D<float2> gLinearDepthDerivativesMap							: register(u3);
+RWTexture2D<uint4> gTsppCoefficientSquaredMeanRayHitDistanceMap			: register(u4);
+RWTexture2D<uint> gDisocclusionBlurStrengthMap							: register(u5);
+RWTexture2D<uint> gTsspMap0												: register(u6);
+RWTexture2D<uint> gTsspMap1												: register(u7);
+RWTexture2D<float> gTemporalAOCoefficientMap0							: register(u8);
+RWTexture2D<float> gTemporalAOCoefficientMap1							: register(u9);
+RWTexture2D<float> gCoefficientSquaredMeanMap0							: register(u10);
+RWTexture2D<float> gCoefficientSquaredMeanMap1							: register(u11);
+RWTexture2D<float> gRayHitDistanceMap0									: register(u12);
+RWTexture2D<float> gRayHitDistanceMap1									: register(u13);
+RWTexture2D<float2> gDxrLocalMeanVarianceMap0							: register(u14);
+RWTexture2D<float2> gDxrLocalMeanVarianceMap1							: register(u15);
+RWTexture2D<float> gDxrVarianceMap0										: register(u16);
+RWTexture2D<float> gDxrVarianceMap1										: register(u17);
 
 RaytracingAccelerationStructure	gBVH		: register(t0);
 StructuredBuffer<ObjectData> gObjects		: register(t1);
@@ -47,12 +48,12 @@ StructuredBuffer<Vertex> gVertices[64]		: register(t0, space1);
 
 ByteAddressBuffer gIndices[64]				: register(t0, space2);
 
-Texture2D gColorMap							: register(t0, space3);
-Texture2D gAlbedoMap						: register(t1, space3);
-Texture2D gNormalMap						: register(t2, space3);
-Texture2D gDepthMap							: register(t3, space3);
-Texture2D gSpecularMap						: register(t4, space3);
-Texture2D gVelocityMap						: register(t5, space3);
+Texture2D<float4> gColorMap					: register(t0, space3);
+Texture2D<float4> gAlbedoMap				: register(t1, space3);
+Texture2D<float4> gNormalMap				: register(t2, space3);
+Texture2D<float2> gDepthMap					: register(t3, space3);
+Texture2D<float4> gSpecularMap				: register(t4, space3);
+Texture2D<float4> gVelocityMap				: register(t5, space3);
 
 
 cbuffer cbPass	: register(b0) {

@@ -14,6 +14,7 @@
 #endif
 
 #include "Common.hlsli"
+#include "ShadingHelpers.hlsli"
 
 static const float2 gTexCoords[6] = {
 	float2(0.0f, 1.0f),
@@ -39,7 +40,7 @@ VertexOut VS(uint vid : SV_VertexID) {
 	vout.PosH = float4(2.0f * vout.TexC.x - 1.0f, 1.0f - 2.0f * vout.TexC.y, 0.0f, 1.0f);
 
 	// Transform quad corners to view space near plane.
-	float4 ph = mul(vout.PosH, gInvProj);
+	float4 ph = mul(vout.PosH, cbPass.InvProj);
 	vout.PosV = ph.xyz / ph.w;
 
 	return vout;
@@ -47,9 +48,8 @@ VertexOut VS(uint vid : SV_VertexID) {
 
 float4 PS(VertexOut pin) : SV_Target {
 	// Get viewspace normal and z-coord of this pixel.  
-	//float3 n = normalize(gNormalMap.Sample(gsamPointClamp, pin.TexC).xyz);
 	float pz = gDepthMap.Sample(gsamDepthMap, pin.TexC).r;
-	pz = NdcDepthToViewDepth(pz);
+	pz = NdcDepthToViewDepth(pz, cbPass.Proj);
 
 	//
 	// Reconstruct full view space position (x,y,z).
@@ -58,18 +58,26 @@ float4 PS(VertexOut pin) : SV_Target {
 	// t = p.z / pin.PosV.z
 	//
 	float3 posV = (pz / pin.PosV.z) * pin.PosV;
-	float4 posW = mul(float4(posV, 1.0f), gInvView);
+	float4 posW = mul(float4(posV, 1.0f), cbPass.InvView);
 
-	float3 normalW = normalize(gNormalMap.Sample(gsamPointClamp, pin.TexC).rgb);
-	float3 toEyeW = normalize(gEyePosW - posW.xyz);
+	float3 normalW = normalize(gNormalDepthMap.Sample(gsamPointClamp, pin.TexC).rgb);
+	float3 toEyeW = normalize(cbPass.EyePosW - posW.xyz);
 
 	float4 colorSample = gColorMap.Sample(gsamPointClamp, pin.TexC);
 	float4 albedoSample = gAlbedoMap.Sample(gsamPointClamp, pin.TexC);
 	float4 diffuseAlbedo = colorSample * albedoSample;
 	
-	float ambientAccess = gDxrAmbientMap0.Sample(gsamPointClamp, pin.TexC);
+	float ambientAccess;
+	{
+		uint width, height;
+		guDxrAmbientMap0.GetDimensions(width, height);
 
-	float4 ambient = ambientAccess * gAmbientLight * diffuseAlbedo;
+		uint2 index = uint2(pin.TexC.x * width - 0.5f, pin.TexC.y * height - 0.5f);
+
+		ambientAccess = guDxrAmbientMap0[index];
+	}
+
+	float4 ambient = ambientAccess * cbPass.AmbientLight * diffuseAlbedo;
 
 	float4 specular = gSpecularMap.Sample(gsamPointClamp, pin.TexC);
 	const float shiness = 1.0f - specular.a;
@@ -78,7 +86,7 @@ float4 PS(VertexOut pin) : SV_Target {
 	float3 shadowFactor = (float3)1.0f;
 	shadowFactor[0] = gDxrShadowMap0.Sample(gsamPointClamp, pin.TexC);
 
-	float4 directLight = ComputeLighting(gLights, mat, posW, normalW, toEyeW, shadowFactor);
+	float4 directLight = ComputeLighting(cbPass.Lights, mat, posW, normalW, toEyeW, shadowFactor);
 
 	float4 litColor = ambient + directLight;
 	litColor.a = diffuseAlbedo.a;

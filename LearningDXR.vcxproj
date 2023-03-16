@@ -20,6 +20,7 @@
     <ClInclude Include="include\GameTimer.h" />
     <ClInclude Include="include\GBuffer.h" />
     <ClInclude Include="include\GeometryGenerator.h" />
+    <ClInclude Include="include\HlslCompaction.h" />
     <ClInclude Include="include\Logger.h" />
     <ClInclude Include="include\LowRenderer.h" />
     <ClInclude Include="include\MathHelper.h" />
@@ -36,7 +37,12 @@
   </ItemGroup>
   <ItemGroup>
     <None Include=".gitignore" />
+    <None Include="assets\shaders\CrossBilateralWeights.hlsli" />
     <None Include="assets\shaders\DxrBackBuffer.hlsl" />
+    <None Include="assets\shaders\HlslCompaction.hlsli" />
+    <None Include="assets\shaders\RandGenerator.hlsli" />
+    <None Include="assets\shaders\Rtao.hlsli" />
+    <None Include="assets\shaders\ShadingHelpers.hlsli" />
     <None Include="include\LowRenderer.inl" />
     <None Include="include\Renderer.inl" />
     <None Include="include\UploadBuffer.inl" />
@@ -118,17 +124,12 @@
     </None>
   </ItemGroup>
   <ItemGroup>
-    <None Include="assets\shaders\UnorderedAccessBlur.hlsl">
-      <FileType>Document</FileType>
-    </None>
-  </ItemGroup>
-  <ItemGroup>
     <None Include="assets\shaders\Ssao.hlsl">
       <FileType>Document</FileType>
     </None>
   </ItemGroup>
   <ItemGroup>
-    <None Include="assets\shaders\Blur.hlsl">
+    <None Include="assets\shaders\GaussianBlur.hlsl">
       <FileType>Document</FileType>
     </None>
   </ItemGroup>
@@ -141,12 +142,37 @@
     </None>
   </ItemGroup>
   <ItemGroup>
-    <None Include="assets\shaders\GroundTruthRtao.hlsl">
+    <None Include="assets\shaders\GroundTruthAO.hlsl">
       <FileType>Document</FileType>
     </None>
   </ItemGroup>
   <ItemGroup>
-    <None Include="assets\shaders\ComputeBlur.hlsl">
+    <None Include="assets\shaders\ComputeGaussianBlur.hlsl">
+      <FileType>Document</FileType>
+    </None>
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="assets\shaders\TemporalSupersamplingReverseReproject.hlsl">
+      <FileType>Document</FileType>
+    </None>
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="assets\shaders\CalculatePartialDerivatives.hlsl">
+      <FileType>Document</FileType>
+    </None>
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="assets\shaders\TemporalSupersamplingBlendWithCurrentFrame.hlsl">
+      <FileType>Document</FileType>
+    </None>
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="assets\shaders\CalculateLocalMeanVariance.hlsl">
+      <FileType>Document</FileType>
+    </None>
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="assets\shaders\FillInCheckerboard.hlsl">
       <FileType>Document</FileType>
     </None>
   </ItemGroup>

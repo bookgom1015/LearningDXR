@@ -98,7 +98,7 @@ bool ShaderManager::CompileShader(const D3D12ShaderInfo& inShaderInfo, const std
 		ReturnFalse(errorMsgW);
 	}
 
-	CheckHResult(result->GetResult(&mRTShaders[inName]));
+	CheckHResult(result->GetResult(&mDxcShaders[inName]));
 
 	return true;
 }
@@ -107,6 +107,6 @@ ID3DBlob* ShaderManager::GetShader(const std::string& inName) {
 	return mShaders[inName].Get();
 }
 
-IDxcBlob* ShaderManager::GetRTShader(const std::string& inName) {
-	return mRTShaders[inName].Get();
+IDxcBlob* ShaderManager::GetDxcShader(const std::string& inName) {
+	return mDxcShaders[inName].Get();
 }

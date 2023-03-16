@@ -32,7 +32,7 @@ public:
 	static const UINT NumDepthStenciles = 1;
 
 protected:
-	const DXGI_FORMAT ShadowMapFormat = DXGI_FORMAT_R24G8_TYPELESS;
+	const DXGI_FORMAT ShadowMapFormat = DXGI_FORMAT_D24_UNORM_S8_UINT;
 
 private:
 	ID3D12Device* md3dDevice;

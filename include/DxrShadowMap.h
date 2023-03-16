@@ -8,7 +8,7 @@ public:
 	virtual ~DxrShadowMap();
 
 public:
-	bool Initialize(ID3D12Device* device, UINT width, UINT height);
+	bool Initialize(ID3D12Device* device, ID3D12GraphicsCommandList* cmdList, UINT width, UINT height);
 
 	__forceinline constexpr UINT Width() const;
 	__forceinline constexpr UINT Height() const;
@@ -30,11 +30,11 @@ public:
 		UINT descSize
 	);
 
-	bool OnResize(UINT width, UINT height);
+	bool OnResize(ID3D12GraphicsCommandList* cmdList, UINT width, UINT height);
 
 private:
 	void BuildDescriptors();
-	bool BuildResource();
+	bool BuildResource(ID3D12GraphicsCommandList* cmdList);
 	
 public:
 	const static DXGI_FORMAT ShadowMapFormat = DXGI_FORMAT_R16_UNORM;

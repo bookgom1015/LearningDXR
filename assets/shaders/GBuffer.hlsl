@@ -2,6 +2,7 @@
 #define __GBUFFER_HLSL__
 
 #include "Common.hlsli"
+#include "ShadingHelpers.hlsli"
 
 struct VertexIn {
 	float3 PosL		: POSITION;
@@ -16,15 +17,17 @@ struct VertexOut {
 	float4 PrevPosH		: PREVPOSH;
 	float3 PrevPosW		: PREVPOSW;
 	float3 NormalW		: NORMAL;
+	float3 PrevNormalW	: PREVNORMAL;
 	float2 TexC			: TEXCOORD;
 };
 
 struct PixelOut {
-	float4 Color	: SV_TARGET0;
-	float4 Albedo	: SV_TARGET1;
-	float4 Normal	: SV_TARGET2;
-	float4 Specular	: SV_TARGET3;
-	float2 Velocity	: SV_TARGET4;
+	float4 Color					: SV_TARGET0;
+	float4 Albedo					: SV_TARGET1;
+	float4 NormalDepth				: SV_TARGET2;
+	float4 Specular					: SV_TARGET3;
+	float2 Velocity					: SV_TARGET4;
+	float4 ReprojectedNormalDepth	: SV_TARGET5;
 };
 
 VertexOut VS(VertexIn vin) {
@@ -34,14 +37,15 @@ VertexOut VS(VertexIn vin) {
 	
 	float4 posW = mul(float4(vin.PosL, 1.0f), objData.World);
 	vout.PosW = posW.xyz;
-	vout.PosH = mul(posW, gViewProj);
+	vout.PosH = mul(posW, cbPass.ViewProj);
 	vout.NonJitPosH = vout.PosH;
 
 	float4 prevPosW = mul(float4(vin.PosL, 1.0f), objData.PrevWorld);
 	vout.PrevPosW = prevPosW.xyz;
-	vout.PrevPosH = mul(prevPosW, gPrevViewProj);
+	vout.PrevPosH = mul(prevPosW, cbPass.PrevViewProj);
 
 	vout.NormalW = mul(vin.NormalL, (float3x3)objData.World);
+	vout.PrevNormalW = mul(vin.NormalL, (float3x3)objData.PrevWorld);
 
 	MaterialData matData = gMaterials[objData.MaterialIndex];
 
@@ -56,8 +60,9 @@ PixelOut PS(VertexOut pin) {
 	MaterialData matData = gMaterials[objData.MaterialIndex];
 
 	pin.NormalW = normalize(pin.NormalW);
+	pin.PrevNormalW = normalize(pin.PrevNormalW);
 
-	float3 toEyeW = normalize(gEyePosW - pin.PosW);
+	float3 toEyeW = normalize(cbPass.EyePosW - pin.PosW);
 
 	pin.NonJitPosH /= pin.NonJitPosH.w;
 	pin.PrevPosH /= pin.PrevPosH.w;
@@ -66,9 +71,10 @@ PixelOut PS(VertexOut pin) {
 	PixelOut pout = (PixelOut)0.0f;
 	pout.Color = matData.DiffuseAlbedo;
 	pout.Albedo = matData.DiffuseAlbedo;
-	pout.Normal = float4(pin.NormalW, 0.0f);
+	pout.NormalDepth = float4(pin.NormalW, pin.NonJitPosH.z);
 	pout.Specular = float4(matData.FresnelR0, matData.Roughness);
 	pout.Velocity = velocity;
+	pout.ReprojectedNormalDepth = float4(pin.PrevNormalW, pin.PrevPosH.z);
 	return pout;
 }
 

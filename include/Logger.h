@@ -153,19 +153,22 @@
 #endif
 
 #ifndef CheckHResult
-#define CheckHResult(__statement)			\
-	{										\
-		try {								\
-			HRESULT __result = __statement;	\
-			if (FAILED(__result)) {			\
-				WErrln(L"");				\
-				return false;				\
-			}								\
-		}									\
-		catch (const std::exception& e) {	\
-			Errln(e.what());				\
-			return false;					\
-		}									\
+#define CheckHResult(__statement)							\
+	{														\
+		try {												\
+			HRESULT __result = __statement;					\
+			if (FAILED(__result)) {							\
+				auto errCode = GetLastError();				\
+				std::wstringstream wsstream;				\
+				wsstream << "0x" << std::hex << errCode;	\
+				WErrln(wsstream.str());						\
+				return false;								\
+			}												\
+		}													\
+		catch (const std::exception& e) {					\
+			Errln(e.what());								\
+			return false;									\
+		}													\
 	}
 #endif
 

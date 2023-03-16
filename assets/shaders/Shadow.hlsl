@@ -20,7 +20,7 @@ VertexOut VS(VertexIn vin) {
 	ObjectData objData = gObjects[gInstanceID];
 
 	float4 posW = mul(float4(vin.PosL, 1.0f), objData.World);
-	vout.PosH = mul(posW, gViewProj);
+	vout.PosH = mul(posW, cbPass.ViewProj);
 
 	MaterialData matData = gMaterials[objData.MaterialIndex];
 

@@ -14,6 +14,7 @@
 #endif
 
 #include "Common.hlsli"
+#include "ShadingHelpers.hlsli"
 
 static const float2 gTexCoords[6] = {
 	float2(0.0f, 1.0f),
@@ -39,7 +40,7 @@ VertexOut VS(uint vid : SV_VertexID) {
 	vout.PosH = float4(2.0f * vout.TexC.x - 1.0f, 1.0f - 2.0f * vout.TexC.y, 0.0f, 1.0f);
 
 	// Transform quad corners to view space near plane.
-	float4 ph = mul(vout.PosH, gInvProj);
+	float4 ph = mul(vout.PosH, cbPass.InvProj);
 	vout.PosV = ph.xyz / ph.w;
 
 	return vout;
@@ -47,9 +48,8 @@ VertexOut VS(uint vid : SV_VertexID) {
 
 float4 PS(VertexOut pin) : SV_Target {
 	// Get viewspace normal and z-coord of this pixel.  
-	//float3 n = normalize(gNormalMap.Sample(gsamPointClamp, pin.TexC).xyz);
-	float pz = gDepthMap.Sample(gsamDepthMap, pin.TexC).r;
-	pz = NdcDepthToViewDepth(pz);
+	float pz = gDepthMap.Sample(gsamDepthMap, pin.TexC);
+	pz = NdcDepthToViewDepth(pz, cbPass.Proj);
 
 	//
 	// Reconstruct full view space position (x,y,z).
@@ -58,30 +58,30 @@ float4 PS(VertexOut pin) : SV_Target {
 	// t = p.z / pin.PosV.z
 	//
 	float3 posV = (pz / pin.PosV.z) * pin.PosV;
-	float4 posW = mul(float4(posV, 1.0f), gInvView);
+	float4 posW = mul(float4(posV, 1.0f), cbPass.InvView);
 
-	float3 normalW = normalize(gNormalMap.Sample(gsamPointClamp, pin.TexC).rgb);
-	float3 toEyeW = normalize(gEyePosW - posW.xyz);
+	float3 normalW = normalize(gNormalDepthMap.Sample(gsamPointClamp, pin.TexC).rgb);
+	float3 toEyeW = normalize(cbPass.EyePosW - posW.xyz);
 
 	float4 colorSample = gColorMap.Sample(gsamPointClamp, pin.TexC);
 	float4 albedoSample = gAlbedoMap.Sample(gsamPointClamp, pin.TexC);
 	float4 diffuseAlbedo = colorSample * albedoSample;
 	
-	float4 ssaoPosH = mul(posW, gViewProjTex);
+	float4 ssaoPosH = mul(posW, cbPass.ViewProjTex);
 	ssaoPosH /= ssaoPosH.w;
-	float ambientAccess = gAmbientMap0.Sample(gsamLinearClamp, ssaoPosH.xy, 0.0f).r;
+	float ambientAccess = gAmbientMap0.Sample(gsamLinearClamp, ssaoPosH.xy, 0.0f);
 
-	float4 ambient = ambientAccess * gAmbientLight * diffuseAlbedo;
+	float4 ambient = ambientAccess * cbPass.AmbientLight * diffuseAlbedo;
 
 	float4 specular = gSpecularMap.Sample(gsamPointClamp, pin.TexC);
 	const float shiness = 1.0f - specular.a;
 	Material mat = { albedoSample, specular.rgb, shiness };
 
 	float3 shadowFactor = (float3)1.0f;
-	float4 shadowPosH = mul(posW, gShadowTransform);
+	float4 shadowPosH = mul(posW, cbPass.ShadowTransform);
 	shadowFactor[0] = CalcShadowFactor(shadowPosH);
 
-	float4 directLight = ComputeLighting(gLights, mat, posW, normalW, toEyeW, shadowFactor);
+	float4 directLight = ComputeLighting(cbPass.Lights, mat, posW, normalW, toEyeW, shadowFactor);
 
 	float4 litColor = ambient + directLight;
 	litColor.a = diffuseAlbedo.a;

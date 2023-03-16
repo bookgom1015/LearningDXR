@@ -70,160 +70,310 @@ enum class ERenderTypes {
 	Count
 };
 
-enum class ERasterRootSignatureLayout {
-	EPassCB = 0,
-	EConsts,
-	EObjSB,
-	EMatSB,
-	ESrvMaps,
-	EUavMaps,
-	Count
-};
+namespace ERasterization {
+	namespace RootSignatureLayout {
+		enum {
+			ECB_Pass = 0,
+			EC_Consts,
+			ESB_Object,
+			ESB_Material,
+			ESI_SrvMaps,
+			EUIO_UavMaps,
+			Count
+		};
+	}
 
-enum class ERasterRootConstantsLayout {
-	EInstanceID = 0,
-	EIsRaytracing,
-	Count
-};
+	namespace RootConstantsLayout {
+		enum {
+			EInstanceID = 0,
+			EIsRaytracing,
+			Count
+		};
+	}
+}
 
-enum class EComputeBlurRootSignatureLayout {
-	EBlurPassCB = 0,
-	ENormalDepth,
-	EInput,
-	EOutput,
-	Count
-};
+namespace EComputeGaussianBlur {
+	namespace RootSignatureLayout {
+		enum {
+			ECB_BlurPass = 0,
+			EC_Consts,
+			ESI_NormalAndDepth,
+			ESI_Input,
+			EUO_Output,
+			Count
+		};
+	}
 
-enum class EUaBlurRootSignatureLayout {
-	EBlurPassCB = 0,
-	EConsts,
-	ENormalDepth,
-	EInput,
-	EOutput,
-	Count
-};
+	namespace RootConstantsLayout {
+		enum {
+			EDimensionX = 0,
+			EDimensionY,
+			Count
+		};
+	}
+}
 
-enum class EUaBlurRootConstansLayout {
-	EHorizontal = 0,
-	Count
-};
+namespace EScreenSpaceAO {
+	namespace RootSignatureLayout {
+		enum {
+			ECB_SsaoPass = 0,
+			ESI_NormalAndDepth,
+			ESI_RandomVector,
+			Count
+		};
+	}
+}
 
-enum class ESsaoRootSignatureLayout {
-	ESsaoPassCB = 0,
-	ENormalDepth,
-	ERandomVector,
-	Count
-};
+namespace EGaussianBlur {
+	namespace RootSignatureLayout {
+		enum {
+			ECB_BlurPass = 0,
+			EC_Consts,
+			ESI_NormalAndDepth,
+			ESI_Input,
+			Count
+		};
+	}
 
-enum class EBlurRootSignatureLayout {
-	EBlurPassCB = 0,
-	EConsts,
-	ENormalDepth,
-	EInput,
-	Count
-};
+	namespace RootConstantsLayout {
+		enum {
+			EDotThreshold = 0,
+			EDepthThreshold,
+			EHorizontal,
+			Count
+		};
+	}
+}
 
-enum class EBlurRootConstantsLayout {
-	EDotThreshold = 0,
-	EDepthThreshold,
-	EHorizontal,
-	Count
-};
+namespace EDefaultRaytracing {
+	namespace RootSignatureLayout {
+		enum {
+			ESI_AccelerationStructure = 0,
+			ECB_Pass,
+			ESB_Object,
+			ESB_Material,
+			ESB_Vertices,
+			ESB_Indices,
+			ESI_SrvMaps,
+			EUIO_UavMaps,
+			Count
+		};
+	}
 
-enum class EGizmoRootSignatureLayout {
-	EPassCB = 0,
-	Count
-};
+	namespace LocalRootSignatureLayout {
+		enum {
+			Count = 0
+		};
+	}
+}
 
-enum class EDefaultGlobalRootSignatureLayout {
-	EOutput = 0,
-	EAccelerationStructure,
-	EPassCB,
-	EObjSB,
-	EMatSB,
-	EVertices,
-	EIndices,
-	ESrvMaps,
-	EUavMaps,
-	Count
-};
+namespace ERaytracedAO {
+	namespace RootSignatureLayout {
+		enum {
+			ESI_AccelerationStructure = 0,
+			ECB_RtaoPass,
+			EC_Consts,
+			ESI_NormalAndDepth,
+			EUO_AmbientCoefficient,
+			Count
+		};
+	}
 
-enum class EDefaultLocalRootSignatureLayout {
-	Count = 0
-};
+	namespace RootConstantsLayout {
+		enum {
+			EDimensionX = 0,
+			EDimensionY,
+			Count
+		};
+	}
+}
 
-enum class ERtaoGlobalRootSignatureLayout {
-	EAccelerationStructure = 0,
-	ERtaoPassCB,
-	ENormalDepth,
-	EOutput,
-	Count
-};
+namespace EGroundTruthAO {
+	namespace RootSingatureLayout {
+		enum {
+			ESI_AmbientCoefficentMaps = 0,
+			EConsts,
+			Count
+		};
+	}
+	
+	namespace RootConstantsLayout {
+		enum {
+			EDimensionX = 0,
+			EDimensionY,
+			EAccumulation,
+			Count
+		};
+	}
+}
 
-enum class EGroundTruthAORootSingatureLayout {
-	EAmbientMaps = 0,
-	ENormalDepth,
-	EVelocity,
-	EConsts,
-	Count
-};
+namespace ETemporalSupersamplingReverseReproject {
+	namespace RootSinatureLayout {
+		enum {
+			ECB_CrossBilateralFilter = 0,
+			EC_Consts,
+			ESI_NormalDepth,
+			ESI_Velocity,
+			ESI_ReprojectedNormalDepth,
+			ESI_CachedNormalDepth,
+			ESI_CachedTemporalAOCoefficient,
+			ESI_CachedTemporalSuperSampling,
+			ESI_CachedCoefficientSquaredMean,
+			ESI_CachedRayHitDistance,
+			EUO_TemporalSuperSampling,
+			EUI_LinearDepthDerivatives,
+			EUO_TsppCoefficientSquaredMeanRayHitDistacne,
+			Count
+		};
+	}
 
-enum class EGroundTruthAORootConstantsLayout {
-	EAccumulation = 0,
-	Count
-};
+	namespace RootConstantsLayout {
+		enum {
+			EDimensionX = 0,
+			EDimensionY,
+			Count
+		};
+	}
+}
 
-enum class EDescriptors {
-	ES_Vertices = 0,
-	ES_Indices	= ES_Vertices + gNumGeometryBuffers,
-	ES_Font		= ES_Indices + gNumGeometryBuffers,
+namespace TemporalSupersamplingBlendWithCurrentFrame {
+	namespace RootSignatureLayout {
+		enum {
+			ESI_AmbientCoefficient = 0,
+			ESI_LocalMeanVaraince,
+			ESI_RayHitDistance,
+			ESI_TsppCoefficientSquaredMeanRayHitDistance,
+			EUIO_TemporalAOCoefficient,
+			EUIO_TemporalSupersampling,
+			EUIO_RayHitDistance,
+			EUO_VarianceMap,
+			EUO_BlurStrength,
+			Count
+		};
+	}
+}
 
-	ES_Color, Srv_Start = ES_Color,
-	ES_Albedo,
-	ES_Normal,
-	ES_Depth,
-	ES_Specular,
-	ES_Velocity,
-	ES_Shadow,
-	ES_DxrShadow0,
-	ES_DxrShadow1,
-	ES_Ambient0, 
-	ES_Ambient1, 
-	ES_RandomVector, 
-	ES_DxrAmbient0,
-	ES_DxrAmbient1, Srv_End = ES_DxrAmbient1,
+namespace ECalcPartialDerivatives {
+	namespace RootSignatureLayout {
+		enum {
+			EC_Consts = 0,
+			ESI_Depth,
+			EUO_LinearDepthDerivatives,
+			Count
+		};
+	}
 
-	EU_Output0,
-	EU_Output1,
-	EU_Output2,
+	namespace RootConstantsLayout {
+		enum {
+			EDimensionX = 0,
+			EDimensionY,
+			Count
+		};
+	}
+}
 
-	EU_DxrShadow0, Uav_Start = EU_DxrShadow0,
-	EU_DxrShadow1,
-	EU_DxrAmbient0,
-	EU_DxrAmbient1,
-	EU_Accumulation, Uav_End = EU_Accumulation,
+namespace ECalcLocalMeanVariance {
+	namespace RootSignatureLayout {
+		enum {
+			ECB_LocalMeanVar = 0,
+			ESI_AmbientCoefficient,
+			EUO_LocalMeanVar,
+			Count
+		};
+	}
+}
 
-	Count
-};
+namespace EFillInCheckerboard {
+	namespace RootSignatureLayout {
+		enum {
+			ECB_LocalMeanVar = 0,
+			EUIO_LocalMeanVar,
+			Count
+		};
+	}
+}
 
-enum class ERtvHeapLayout {
-	EBackBuffer0 = 0,
-	EBackBuffer1,
-	EColor,
-	EAlbedo,
-	ENormal,
-	ESpecular,
-	EVelocity,
-	EAmbient0,
-	EAmbient1,
-	Count
-};
+namespace EDescriptors {
+	enum {
+		ES_Vertices = 0,
+		ES_Indices = ES_Vertices + gNumGeometryBuffers,
+		ES_Font = ES_Indices + gNumGeometryBuffers,
 
-enum class EDsvHeapLayout {
-	EDefault = 0,
-	EShaadow,
-	Count
-};
+		//ES_Color, Srv_Start = ES_Color,
+		//ES_Albedo,
+		//ES_NormalDepth,
+		//ES_Depth,
+		//ES_Specular,
+		//ES_Velocity,
+		//ES_ReprojectedNormalDepth,
+		//ES_Shadow,
+		//ES_DxrShadow0,
+		//ES_DxrShadow1,
+		//ES_Ambient0,
+		//ES_Ambient1,
+		//ES_RandomVector,
+		//ES_DxrAmbient0,
+		//ES_DxrCachedNormalDepth,
+		//ES_DxrDisocclusionBlurStrength,
+		//ES_DxrTspp0, 
+		//ES_DxrTspp1,
+		//ES_DxrTemporalAOCoefficient0, 
+		//ES_DxrTemporalAOCoefficient1,
+		//ES_DxrCoefficentSquaredMean0, 
+		//ES_DxrCoefficentSquaredMean1,
+		//ES_DxrRayHitDistance0,
+		//ES_DxrRayHitDistance1, 
+		//ES_DxrLocalMeanVariance0, 
+		//ES_DxrLocalMeanVariance1, 
+		//ES_DxrVariance0,
+		//ES_DxrVariance1, Srv_End = ES_DxrVariance1,
+		//
+		//EU_DxrShadow0, Uav_Start = EU_DxrShadow0,
+		//EU_DxrShadow1,
+		//EU_DxrAmbient0,
+		//EU_DxrLinearDepthDerivatives,
+		//EU_DxrTsppCoefficientSquaredMeanRayHitDistance,
+		//EU_DxrDisocclusionBlurStrength,
+		//EU_DxrTspp0, 
+		//EU_DxrTspp1,
+		//EU_DxrTemporalAOCoefficient0, 
+		//EU_DxrTemporalAOCoefficient1,
+		//EU_DxrCoefficentSquaredMean0, 
+		//EU_DxrCoefficentSquaredMean1,
+		//EU_DxrRayHitDistance0,
+		//EU_DxrRayHitDistance1, 
+		//EU_DxrLocalMeanVariance0,
+		//EU_DxrLocalMeanVariance1, 
+		//EU_DxrVariance0,
+		//EU_DxrVariance1, Uav_End = EU_DxrVariance1,
+
+		Count
+	};
+}
+
+namespace ERtvHeapLayout {
+	enum {
+		EBackBuffer0 = 0,
+		EBackBuffer1,
+		EColor,
+		EAlbedo,
+		ENormal,
+		ESpecular,
+		EVelocity,
+		EReprojectedNormalDepth,
+		EAmbient0,
+		EAmbient1,
+		Count
+	};
+}
+
+namespace EDsvHeapLayout {
+	enum {
+		EDefault = 0,
+		EShadow,
+		Count
+	};
+}
 
 class Renderer : public LowRenderer {	
 public:
@@ -289,6 +439,8 @@ protected:
 	bool UpdateBlurPassCB(const GameTimer& gt);
 	bool UpdateSsaoPassCB(const GameTimer& gt);
 	bool UpdateRtaoPassCB(const GameTimer& gt);
+	bool UpdateCrossBilateralFilterCB(const GameTimer& gt);
+	bool UpdateCalcMeanVarCB(const GameTimer& gt);
 
 	// Drawing
 	bool Rasterize();
@@ -298,7 +450,7 @@ protected:
 	bool DrawSsao();
 	bool DrawBackBuffer();
 
-
+	//
 	bool DrawDebugLayer();
 	bool DrawImGui();
 
@@ -386,6 +538,9 @@ private:
 	UINT mRtaoSampleCount;
 
 	int mNumDxrShadowBlurs;
+
+	bool bCheckerboardSamplingEnabled;
+	bool bCheckerboardGenerateRaysForEvenPixels;
 };
 
 #include "Renderer.inl"

@@ -21,6 +21,8 @@ bool FrameResource::Initialize() {
 	CheckIsValid(BlurCB.Initialize(Device, 1, true));
 	CheckIsValid(SsaoCB.Initialize(Device, 1, true));
 	CheckIsValid(RtaoCB.Initialize(Device, 1, true));
+	CheckIsValid(CrossBilateralFilterCB.Initialize(Device, 1, true));
+	CheckIsValid(CalcLocalMeanVarCB.Initialize(Device, 1, true));
 
 	return true;
 }

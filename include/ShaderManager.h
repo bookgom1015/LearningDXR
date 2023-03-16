@@ -18,10 +18,17 @@ struct D3D12ShaderInfo {
 	UINT32		DefineCount		= 0;
 
 	D3D12ShaderInfo() = default;
-	D3D12ShaderInfo(LPCWSTR inFileName, LPCWSTR inEntryPoint, LPCWSTR inProfile) {
-		FileName = inFileName;
-		EntryPoint = inEntryPoint;
-		TargetProfile = inProfile;
+	D3D12ShaderInfo(LPCWSTR fileName, LPCWSTR entryPoint, LPCWSTR profile) {
+		FileName = fileName;
+		EntryPoint = entryPoint;
+		TargetProfile = profile;
+	}
+	D3D12ShaderInfo(LPCWSTR fileName, LPCWSTR entryPoint, LPCWSTR profile, DxcDefine* defines, UINT32 defCount) {
+		FileName = fileName;
+		EntryPoint = entryPoint;
+		TargetProfile = profile;
+		Defines = defines;
+		DefineCount = defCount;
 	}
 };
 
@@ -44,7 +51,7 @@ public:
 	bool CompileShader(const D3D12ShaderInfo& inShaderInfo, const std::string& inName);
 
 	ID3DBlob* GetShader(const std::string& inName);
-	IDxcBlob* GetRTShader(const std::string& inName);
+	IDxcBlob* GetDxcShader(const std::string& inName);
 
 private:
 	bool bIsCleanedUp = false;
@@ -54,5 +61,5 @@ private:
 	IDxcLibrary* mLibrary = nullptr;
 
 	std::unordered_map<std::string, Microsoft::WRL::ComPtr<ID3DBlob>> mShaders;
-	std::unordered_map<std::string, Microsoft::WRL::ComPtr<IDxcBlob>> mRTShaders;
+	std::unordered_map<std::string, Microsoft::WRL::ComPtr<IDxcBlob>> mDxcShaders;
 };

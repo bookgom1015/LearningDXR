@@ -52,6 +52,18 @@
     <Filter Include="Source Files\Shading">
       <UniqueIdentifier>{3304120b-7c6f-4730-bad2-c3b3b404b7fe}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Shader Files\Raytrace\RTAO">
+      <UniqueIdentifier>{5513b717-e4dc-4375-980f-10ce17275202}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Shader Files\Raytrace\RTAO\Denosing">
+      <UniqueIdentifier>{df43e656-9491-4e8b-a51c-fb9fa66dd712}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Shader Files\Raytrace\RTAO\Denosing\Filtering">
+      <UniqueIdentifier>{78361331-6732-42c2-8b07-a8d8981ff232}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Shader Files\Raytrace\RTAO\Denosing\Temporal">
+      <UniqueIdentifier>{8dba6647-8e20-423b-b1f0-79b6ffe0b3bc}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="include\Application.h">
@@ -120,6 +132,9 @@
     <ClInclude Include="include\Rtao.h">
       <Filter>Header Files\Shading</Filter>
     </ClInclude>
+    <ClInclude Include="include\HlslCompaction.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <None Include="include\LowRenderer.inl">
@@ -168,25 +183,52 @@
     <None Include="assets\shaders\Ssao.hlsl">
       <Filter>Shader Files\Raster</Filter>
     </None>
-    <None Include="assets\shaders\Blur.hlsl">
-      <Filter>Shader Files\Raster</Filter>
-    </None>
     <None Include="assets\shaders\DefaultRay.hlsl">
-      <Filter>Shader Files\Raytrace</Filter>
-    </None>
-    <None Include="assets\shaders\Rtao.hlsl">
-      <Filter>Shader Files\Raytrace</Filter>
-    </None>
-    <None Include="assets\shaders\GroundTruthRtao.hlsl">
       <Filter>Shader Files\Raytrace</Filter>
     </None>
     <None Include="assets\shaders\DxrBackBuffer.hlsl">
       <Filter>Shader Files\Raytrace</Filter>
     </None>
-    <None Include="assets\shaders\UnorderedAccessBlur.hlsl">
-      <Filter>Shader Files\Raytrace</Filter>
+    <None Include="assets\shaders\ShadingHelpers.hlsli">
+      <Filter>Shader Files</Filter>
     </None>
-    <None Include="assets\shaders\ComputeBlur.hlsl">
+    <None Include="assets\shaders\RandGenerator.hlsli">
+      <Filter>Shader Files</Filter>
+    </None>
+    <None Include="assets\shaders\HlslCompaction.hlsli">
+      <Filter>Shader Files</Filter>
+    </None>
+    <None Include="assets\shaders\Rtao.hlsl">
+      <Filter>Shader Files\Raytrace\RTAO</Filter>
+    </None>
+    <None Include="assets\shaders\Rtao.hlsli">
+      <Filter>Shader Files\Raytrace\RTAO</Filter>
+    </None>
+    <None Include="assets\shaders\GroundTruthAO.hlsl">
+      <Filter>Shader Files\Raytrace\RTAO\Denosing\Filtering</Filter>
+    </None>
+    <None Include="assets\shaders\TemporalSupersamplingBlendWithCurrentFrame.hlsl">
+      <Filter>Shader Files\Raytrace\RTAO\Denosing\Temporal</Filter>
+    </None>
+    <None Include="assets\shaders\TemporalSupersamplingReverseReproject.hlsl">
+      <Filter>Shader Files\Raytrace\RTAO\Denosing\Temporal</Filter>
+    </None>
+    <None Include="assets\shaders\CalculatePartialDerivatives.hlsl">
+      <Filter>Shader Files\Raytrace\RTAO\Denosing\Filtering</Filter>
+    </None>
+    <None Include="assets\shaders\CrossBilateralWeights.hlsli">
+      <Filter>Shader Files\Raytrace\RTAO\Denosing\Filtering</Filter>
+    </None>
+    <None Include="assets\shaders\FillInCheckerboard.hlsl">
+      <Filter>Shader Files\Raytrace\RTAO\Denosing\Filtering</Filter>
+    </None>
+    <None Include="assets\shaders\CalculateLocalMeanVariance.hlsl">
+      <Filter>Shader Files\Raytrace\RTAO\Denosing\Filtering</Filter>
+    </None>
+    <None Include="assets\shaders\GaussianBlur.hlsl">
+      <Filter>Shader Files\Raster</Filter>
+    </None>
+    <None Include="assets\shaders\ComputeGaussianBlur.hlsl">
       <Filter>Shader Files\Raytrace</Filter>
     </None>
   </ItemGroup>

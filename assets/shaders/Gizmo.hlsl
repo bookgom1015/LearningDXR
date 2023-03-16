@@ -23,7 +23,7 @@ VertexOut VS(uint vid : SV_VertexID, uint instanceID : SV_InstanceID) {
 	int index = vid + (instanceID * 2);
 	float3 posW = gVertices[index];
 
-	vout.PosH = mul(float4(posW, 1.0f), gUnitViewProj);
+	vout.PosH = mul(float4(posW, 1.0f), cbPass.UnitViewProj);
 	vout.InstID = instanceID;
 
 	return vout;

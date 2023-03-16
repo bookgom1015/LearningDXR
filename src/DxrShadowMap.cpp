@@ -1,17 +1,18 @@
 #include "DxrShadowMap.h"
 #include "Logger.h"
+#include "D3D12Util.h"
 
 DxrShadowMap::DxrShadowMap() {}
 
 DxrShadowMap::~DxrShadowMap() {}
 
-bool DxrShadowMap::Initialize(ID3D12Device* device, UINT width, UINT height) {
+bool DxrShadowMap::Initialize(ID3D12Device* device, ID3D12GraphicsCommandList* cmdList, UINT width, UINT height) {
 	md3dDevice = device;
 
 	mWidth = width;
 	mHeight = height;
 
-	CheckIsValid(BuildResource());
+	CheckIsValid(BuildResource(cmdList));
 
 	return true;
 }
@@ -33,12 +34,12 @@ void DxrShadowMap::BuildDescriptors(
 	BuildDescriptors();
 }
 
-bool DxrShadowMap::OnResize(UINT width, UINT height) {
+bool DxrShadowMap::OnResize(ID3D12GraphicsCommandList* cmdList, UINT width, UINT height) {
 	if ((mWidth != width) || (mHeight != height)) {
 		mWidth = width;
 		mHeight = height;
 
-		CheckIsValid(BuildResource());
+		CheckIsValid(BuildResource(cmdList));
 	}
 
 	return true;
@@ -64,7 +65,7 @@ void DxrShadowMap::BuildDescriptors() {
 	md3dDevice->CreateUnorderedAccessView(mShadowMap1.Get(), nullptr, &uavDesc, mhCpuUav1);
 }
 
-bool DxrShadowMap::BuildResource() {
+bool DxrShadowMap::BuildResource(ID3D12GraphicsCommandList* cmdList) {
 	D3D12_RESOURCE_DESC texDesc = {};
 	texDesc.DepthOrArraySize = 1;
 	texDesc.Dimension = D3D12_RESOURCE_DIMENSION_TEXTURE2D;
@@ -85,6 +86,8 @@ bool DxrShadowMap::BuildResource() {
 		nullptr,
 		IID_PPV_ARGS(&mShadowMap0)
 	));
+	mShadowMap0->SetName(L"DxrShadowMap0");
+
 	CheckHResult(md3dDevice->CreateCommittedResource(
 		&CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_DEFAULT),
 		D3D12_HEAP_FLAG_NONE,
@@ -93,6 +96,26 @@ bool DxrShadowMap::BuildResource() {
 		nullptr,
 		IID_PPV_ARGS(&mShadowMap1)
 	));
+	mShadowMap1->SetName(L"DxrShadowMap1");	
+
+	std::vector<ID3D12Resource*> resources = { mShadowMap0.Get(), mShadowMap1.Get() };
+	D3D12_RESOURCE_BARRIER barriers[] = {
+		CD3DX12_RESOURCE_BARRIER::Transition(
+			mShadowMap0.Get(),
+			D3D12_RESOURCE_STATE_COMMON,
+			D3D12_RESOURCE_STATE_UNORDERED_ACCESS
+		),
+		CD3DX12_RESOURCE_BARRIER::Transition(
+			mShadowMap1.Get(),
+			D3D12_RESOURCE_STATE_COMMON,
+			D3D12_RESOURCE_STATE_UNORDERED_ACCESS
+		)
+	};
+	cmdList->ResourceBarrier(
+		_countof(barriers),
+		barriers
+	);
+	D3D12Util::UavBarriers(cmdList, resources.data(), resources.size());
 
 	return true;
 }

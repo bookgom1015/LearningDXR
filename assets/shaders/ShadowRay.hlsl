@@ -13,11 +13,11 @@ void ShadowRayGen() {
 	gDepthMap.GetDimensions(width, height);
 
 	uint2 launchIndex = DispatchRaysIndex().xy;
-	float2 tex = float2(launchIndex.x / width, launchIndex.y / height);
+	float2 tex = float2((launchIndex.x + 0.5f) / width, (launchIndex.y + 0.5f) / height);
 	float d = gDepthMap.SampleLevel(gsamDepthMap, tex, 0).r;
 	
 	if (d < 1.0f) {
-		float4 posH = float4((launchIndex.x / width) * 2.0f - 1.0f, (1.0f - (launchIndex.y / height)) * 2.0f - 1.0f, 0.0f, 1.0f);
+		float4 posH = float4(tex.x * 2.0f - 1.0f, (1.0f - tex.y) * 2.0f - 1.0f, 0.0f, 1.0f);
 		float4 posV = mul(posH, gInvProj);
 		posV /= posV.w;
 	

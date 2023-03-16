@@ -65,6 +65,19 @@ public:
 		return static_cast<UINT>((sizeof(T) - 1) / SizeOfUint + 1);
 	}
 
+	static void UavBarrier(ID3D12GraphicsCommandList* cmdList, ID3D12Resource* resource);
+	static void UavBarriers(ID3D12GraphicsCommandList* cmdList, ID3D12Resource* resource[], size_t length);
+
+	static __forceinline UINT NumMantissaBitsInFloatFormat(UINT FloatFormatBitLength)	{
+		switch (FloatFormatBitLength) {
+		case 32: return 23;
+		case 16: return 10;
+		case 11: return 6;
+		case 10: return 5;
+		}
+		return 0;
+	}
+
 private:
 	static const size_t SizeOfUint;
 };
