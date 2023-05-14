@@ -2,14 +2,168 @@
 
 #include <d3dx12.h>
 #include <array>
+#include <unordered_map>
 
 #include "MathHelper.h"
+#include "Samplers.h"
 
-namespace RaytracedAO {
+class ShaderManager;
+
+namespace Rtao {
+	namespace CalcAmbientOcclusion {
+		namespace RootSignatureLayout {
+			enum {
+				ESI_AccelerationStructure = 0,
+				ECB_RtaoPass,
+				EC_Consts,
+				ESI_Normal,
+				ESI_Depth,
+				EUO_AOCoefficient,
+				EUO_RayHitDistance,
+				Count
+			};
+		}
+
+		namespace RootConstantsLayout {
+			enum {
+				ETextureDim_X = 0,
+				ETextureDim_Y,
+				Count
+			};
+		}
+	}
+
+	namespace TemporalSupersamplingReverseReproject {
+		namespace RootSignatureLayout {
+			enum {
+				ECB_CrossBilateralFilter = 0,
+				EC_Consts,
+				ESI_NormalDepth,
+				ESI_DepthPartialDerivative,
+				ESI_ReprojectedNormalDepth,
+				ESI_CachedNormalDepth,
+				ESI_Velocity,
+				ESI_CachedAOCoefficient,
+				ESI_CachedTspp,
+				ESI_CachedAOCoefficientSquaredMean,
+				ESI_CachedRayHitDistance,
+				EUO_CachedTspp,
+				EUO_TsppCoefficientSquaredMeanRayHitDistacne,
+				Count
+			};
+		}
+
+		namespace RootConstantsLayout {
+			enum {
+				ETextureDim_X = 0,
+				ETextureDim_Y,
+				EInvTextureDim_X,
+				EInvTextureDim_Y,
+				Count
+			};
+		}
+	}
+
+	namespace TemporalSupersamplingBlendWithCurrentFrame {
+		namespace RootSignatureLayout {
+			enum {
+				ECB_TsspBlendWithCurrentFrame = 0,
+				ESI_AOCoefficient,
+				ESI_LocalMeanVaraince,
+				ESI_RayHitDistance,
+				ESI_TsppCoefficientSquaredMeanRayHitDistance,
+				EUIO_TemporalAOCoefficient,
+				EUIO_Tspp,
+				EUIO_CoefficientSquaredMean,
+				EUIO_RayHitDistance,
+				EUO_VarianceMap,
+				EUO_BlurStrength,
+				Count
+			};
+		}
+	}
+
+	namespace CalcDepthPartialDerivative {
+		namespace RootSignatureLayout {
+			enum {
+				EC_Consts = 0,
+				ESI_Depth,
+				EUO_DepthPartialDerivative,
+				Count
+			};
+		}
+
+		namespace RootConstantsLayout {
+			enum {
+				EInvTextureDim_X = 0,
+				EInvTextureDim_Y,
+				Count
+			};
+		}
+	}
+
+	namespace CalcLocalMeanVariance {
+		namespace RootSignatureLayout {
+			enum {
+				ECB_LocalMeanVar = 0,
+				ESI_AOCoefficient,
+				EUO_LocalMeanVar,
+				Count
+			};
+		}
+	}
+
+	namespace FillInCheckerboard {
+		namespace RootSignatureLayout {
+			enum {
+				ECB_LocalMeanVar = 0,
+				EUIO_LocalMeanVar,
+				Count
+			};
+		}
+	}
+
+	namespace AtrousWaveletTransformFilter {
+		namespace RootSignatureLayout {
+			enum {
+				ECB_AtrousFilter = 0,
+				ESI_TemporalAOCoefficient,
+				ESI_NormalDepth,
+				ESI_Variance,
+				ESI_HitDistance,
+				ESI_DepthPartialDerivative,
+				ESI_Tspp,
+				EUO_TemporalAOCoefficient,
+				Count
+			};
+		}
+	}
+
+	namespace DisocclusionBlur {
+		namespace RootSignatureLayout {
+			enum {
+				EC_Consts = 0,
+				ESI_Depth,
+				ESI_BlurStrength,
+				EUIO_AOCoefficient,
+				Count
+			};
+		}
+
+		namespace RootConstantsLayout {
+			enum {
+				ETextureDim_X = 0,
+				ETextureDim_Y,
+				EStep,
+				Count
+			};
+		}
+	}
+
 	namespace AOResources {
 		enum {
 			EAmbientCoefficient = 0,
-			//ERayHitDistance,
+			ERayHitDistance,
 			Count
 		};
 
@@ -17,8 +171,8 @@ namespace RaytracedAO {
 			enum {
 				ES_AmbientCoefficient = 0,
 				EU_AmbientCoefficient,
-				//ES_RayHitDistance,
-				//EU_RayHitDistance,
+				ES_RayHitDistance,
+				EU_RayHitDistance,
 				Count
 			};
 		}
@@ -26,328 +180,389 @@ namespace RaytracedAO {
 
 	namespace TemporalCaches {
 		enum {
-			ETemporalSupersampling = 0,
+			ETspp = 0,
+			ERayHitDistance,
+			ECoefficientSquaredMean,
 			Count
 		};
 
 		namespace Descriptors {
 			enum {
-				ES_TemporalSupersampling = 0,
-				EU_TemporalSupersampling,
+				ES_Tspp = 0,
+				EU_Tspp,
+				ES_RayHitDistance,
+				EU_RayHitDistance,
+				ES_CoefficientSquaredMean,
+				EU_CoefficientSquaredMean,
+				Count
+			};
+		}
+	}
+
+	namespace LocalMeanVarianceResources {
+		enum {
+			ERaw = 0,
+			ESmoothed,
+			Count
+		};
+
+		namespace Descriptors {
+			enum {
+				ES_Raw = 0,
+				EU_Raw,
+				ES_Smoothed,
+				EU_Smoothed,
+				Count
+			};
+		}
+	}
+
+	namespace AOVarianceResources {
+		enum {
+			ERaw = 0,
+			ESmoothed,
+			Count
+		};
+
+		namespace Descriptors {
+			enum {
+				ES_Raw = 0,
+				EU_Raw,
+				ES_Smoothed,
+				EU_Smoothed,
+				Count
+			};
+		}
+	}
+
+	namespace TemporalAOCoefficients {
+		namespace Descriptors {
+			enum {
+				Srv = 0,
+				Uav,
 				Count
 			};
 		}
 	}
 	
 	using AOResourcesType = std::array<Microsoft::WRL::ComPtr<ID3D12Resource>, AOResources::Count>;
+	using AOResourcesCpuDescriptors = std::array<CD3DX12_CPU_DESCRIPTOR_HANDLE, AOResources::Descriptors::Count>;
+	using AOResourcesGpuDescriptors = std::array<CD3DX12_GPU_DESCRIPTOR_HANDLE, AOResources::Descriptors::Count>;
+	
 	using TemporalCachesType = std::array<std::array<Microsoft::WRL::ComPtr<ID3D12Resource>, TemporalCaches::Count>, 2>;
+	using TemporalCachesCpuDescriptors = std::array<std::array<CD3DX12_CPU_DESCRIPTOR_HANDLE, TemporalCaches::Descriptors::Count>, 2>;
+	using TemporalCachesGpuDescriptors = std::array<std::array<CD3DX12_GPU_DESCRIPTOR_HANDLE, TemporalCaches::Descriptors::Count>, 2>;
 
-	using AOResourcesCpuDescriptors = std::array<CD3DX12_CPU_DESCRIPTOR_HANDLE, RaytracedAO::AOResources::Descriptors::Count>;
-	using AOResourcesGpuDescriptors = std::array<CD3DX12_GPU_DESCRIPTOR_HANDLE, RaytracedAO::AOResources::Descriptors::Count>;
-	using TemporalCachesCpuDescriptors = std::array<std::array<CD3DX12_CPU_DESCRIPTOR_HANDLE, RaytracedAO::TemporalCaches::Descriptors::Count>, 2>;
-	using TemporalCachesGpuDescriptors = std::array<std::array<CD3DX12_GPU_DESCRIPTOR_HANDLE, RaytracedAO::TemporalCaches::Descriptors::Count>, 2>;
-}
-
-class Rtao {
-public:
-	Rtao();
-	virtual ~Rtao();
-
-public:
-	bool Initialize(ID3D12Device* device, ID3D12GraphicsCommandList* cmdList, UINT width, UINT height);
-
-	__forceinline constexpr UINT Width() const;
-	__forceinline constexpr UINT Height() const;
-
-	__forceinline const RaytracedAO::AOResourcesType& AOResources() const;
-	__forceinline const RaytracedAO::AOResourcesGpuDescriptors& AOResourcesGpuDescriptors() const;
-
-	__forceinline const RaytracedAO::TemporalCachesType& TemporalCaches() const;
-	__forceinline const RaytracedAO::TemporalCachesGpuDescriptors& TemporalCachesGpuDescriptors() const;
+	using LocalMeanVarianceResourcesType = std::array<Microsoft::WRL::ComPtr<ID3D12Resource>, LocalMeanVarianceResources::Count>;
+	using LocalMeanVarianceResourcesCpuDescriptors = std::array<CD3DX12_CPU_DESCRIPTOR_HANDLE, LocalMeanVarianceResources::Descriptors::Count>;
+	using LocalMeanVarianceResourcesGpuDescriptors = std::array<CD3DX12_GPU_DESCRIPTOR_HANDLE, LocalMeanVarianceResources::Descriptors::Count>;
 	
-	__forceinline ID3D12Resource* CachedNormalDepthMapResource();
-	__forceinline constexpr CD3DX12_GPU_DESCRIPTOR_HANDLE CachedNormalDepthMapSrv() const;
+	using AOVarianceResourcesType = std::array<Microsoft::WRL::ComPtr<ID3D12Resource>, AOVarianceResources::Count>;
+	using AOVarianceResourcesCpuDescriptors = std::array<CD3DX12_CPU_DESCRIPTOR_HANDLE, AOVarianceResources::Descriptors::Count>;
+	using AOVarianceResourcesGpuDescriptors = std::array<CD3DX12_GPU_DESCRIPTOR_HANDLE, AOVarianceResources::Descriptors::Count>;
 
-	__forceinline ID3D12Resource* LinearDepthDerivativesMapResource();
-	__forceinline constexpr CD3DX12_GPU_DESCRIPTOR_HANDLE LinearDepthDerivativesMapUav() const;
+	using TemporalAOCoefficientsType = std::array<Microsoft::WRL::ComPtr<ID3D12Resource>, 2>;
+	using TemporalAOCoefficientsCpuDescriptors = std::array<std::array<CD3DX12_CPU_DESCRIPTOR_HANDLE, TemporalAOCoefficients::Descriptors::Count>, 2>;
+	using TemporalAOCoefficientsGpuDescriptors = std::array<std::array<CD3DX12_GPU_DESCRIPTOR_HANDLE, TemporalAOCoefficients::Descriptors::Count>, 2>;
 
-	__forceinline ID3D12Resource* TsppCoefficientSquaredMeanRayHitDistanceMapResource();
-	__forceinline constexpr CD3DX12_GPU_DESCRIPTOR_HANDLE TsppCoefficientSquaredMeanRayHitDistanceMapUav() const;
+	const float AmbientMapClearValues[1] = { 1.0f };
 
-	__forceinline ID3D12Resource* DisocclusionBlurStrengthMapResource();
-	__forceinline constexpr CD3DX12_GPU_DESCRIPTOR_HANDLE DisocclusionBlurStrengthMapSrv() const;
-	__forceinline constexpr CD3DX12_GPU_DESCRIPTOR_HANDLE DisocclusionBlurStrengthMapUav() const;
+	const DXGI_FORMAT AOCoefficientMapFormat							= DXGI_FORMAT_R16_FLOAT;
+	const DXGI_FORMAT NormalDepthMapFormat								= DXGI_FORMAT_R8G8B8A8_SNORM;
+	const DXGI_FORMAT DepthPartialDerivativeMapFormat					= DXGI_FORMAT_R16G16_FLOAT;
+	const DXGI_FORMAT TsppCoefficientSquaredMeanRayHitDistanceFormat	= DXGI_FORMAT_R16G16B16A16_UINT;
+	const DXGI_FORMAT DisocclusionBlurStrengthMapFormat					= DXGI_FORMAT_R8_UNORM;
+	const DXGI_FORMAT TsppMapFormat										= DXGI_FORMAT_R8_UINT;
+	const DXGI_FORMAT CoefficientSquaredMeanMapFormat					= DXGI_FORMAT_R16_FLOAT;
+	const DXGI_FORMAT RayHitDistanceFormat								= DXGI_FORMAT_R16_FLOAT;
+	const DXGI_FORMAT LocalMeanVarianceMapFormat						= DXGI_FORMAT_R16G16_FLOAT;
+	const DXGI_FORMAT VarianceMapFormat									= DXGI_FORMAT_R16_FLOAT;
 
-	__forceinline ID3D12Resource* TemporalAOCoefficientMapResource();
-	__forceinline constexpr CD3DX12_GPU_DESCRIPTOR_HANDLE TemporalAOCoefficientMapUav() const;
+	class RtaoClass {
+	public:
+		RtaoClass() = default;
+		virtual ~RtaoClass() = default;
 
-	__forceinline ID3D12Resource* CachedTemporalAOCoefficientMapResource();
-	__forceinline constexpr CD3DX12_GPU_DESCRIPTOR_HANDLE CachedTemporalAOCoefficientMapSrv() const;
+	public:
+		bool Initialize(ID3D12Device5*const device, ID3D12GraphicsCommandList*const cmdList, ShaderManager*const manager, UINT width, UINT height);
+		bool CompileShaders(const std::wstring& filePath);
+		bool BuildRootSignatures(const StaticSamplers& samplers);
+		bool BuildPSO();
+		bool BuildDXRPSO();
+		bool BuildShaderTables();
+		void RunCalculatingAmbientOcclusion(
+			ID3D12GraphicsCommandList4*const cmdList,
+			D3D12_GPU_VIRTUAL_ADDRESS accelStruct,
+			D3D12_GPU_VIRTUAL_ADDRESS cbAddress,
+			D3D12_GPU_DESCRIPTOR_HANDLE si_normal,
+			D3D12_GPU_DESCRIPTOR_HANDLE si_depth,
+			D3D12_GPU_DESCRIPTOR_HANDLE uo_aoCoefficient,
+			D3D12_GPU_DESCRIPTOR_HANDLE uo_rayHitDistance);
+		void RunCalculatingDepthPartialDerivative(
+			ID3D12GraphicsCommandList4*const cmdList,
+			D3D12_GPU_DESCRIPTOR_HANDLE i_depth,
+			D3D12_GPU_DESCRIPTOR_HANDLE o_depthPartialDerivative,
+			UINT width, UINT height);
+		void RunCalculatingLocalMeanVariance(
+			ID3D12GraphicsCommandList4*const cmdList,
+			D3D12_GPU_VIRTUAL_ADDRESS cbAddress,
+			D3D12_GPU_DESCRIPTOR_HANDLE si_aoCoefficient,
+			D3D12_GPU_DESCRIPTOR_HANDLE uo_localMeanVariance,
+			UINT width, UINT height,
+			bool checkerboardSamplingEnabled);
+		void FillInCheckerboard(
+			ID3D12GraphicsCommandList4*const cmdList,
+			D3D12_GPU_VIRTUAL_ADDRESS cbAddress,
+			D3D12_GPU_DESCRIPTOR_HANDLE uio_localMeanVariance);
+		void ReverseReprojectPreviousFrame(
+			ID3D12GraphicsCommandList4*const cmdList,
+			D3D12_GPU_VIRTUAL_ADDRESS cbAddress,
+			D3D12_GPU_DESCRIPTOR_HANDLE si_normalDepth,
+			D3D12_GPU_DESCRIPTOR_HANDLE si_depthPartialDerivative,
+			D3D12_GPU_DESCRIPTOR_HANDLE si_reprojNormalDepth,
+			D3D12_GPU_DESCRIPTOR_HANDLE si_cachedNormalDepth,
+			D3D12_GPU_DESCRIPTOR_HANDLE si_velocity,
+			D3D12_GPU_DESCRIPTOR_HANDLE si_cachedAOCoefficient,
+			D3D12_GPU_DESCRIPTOR_HANDLE si_cachedTspp,
+			D3D12_GPU_DESCRIPTOR_HANDLE si_cachedAOCoefficientSquaredMean,
+			D3D12_GPU_DESCRIPTOR_HANDLE si_cachedRayHitDistance,
+			D3D12_GPU_DESCRIPTOR_HANDLE uo_cachedTspp,
+			D3D12_GPU_DESCRIPTOR_HANDLE uo_tsppCoefficientSquaredMeanRayHitDistance);
+		void BlendWithCurrentFrame(
+			ID3D12GraphicsCommandList4*const cmdList,
+			D3D12_GPU_VIRTUAL_ADDRESS cbAddress,
+			D3D12_GPU_DESCRIPTOR_HANDLE si_aoCoefficient,
+			D3D12_GPU_DESCRIPTOR_HANDLE si_localMeanVariance,
+			D3D12_GPU_DESCRIPTOR_HANDLE si_rayHitDistance,
+			D3D12_GPU_DESCRIPTOR_HANDLE si_tsppCoefficientSquaredMeanRayHitDistance,
+			D3D12_GPU_DESCRIPTOR_HANDLE uio_temporalAOCoefficient,
+			D3D12_GPU_DESCRIPTOR_HANDLE uio_tspp,
+			D3D12_GPU_DESCRIPTOR_HANDLE uio_coefficientSquaredMean,
+			D3D12_GPU_DESCRIPTOR_HANDLE uio_rayHitDistance,
+			D3D12_GPU_DESCRIPTOR_HANDLE uo_variance,
+			D3D12_GPU_DESCRIPTOR_HANDLE uo_blurStrength);
+		void ApplyAtrousWaveletTransformFilter(
+			ID3D12GraphicsCommandList4*const cmdList,
+			D3D12_GPU_VIRTUAL_ADDRESS cbAddress,
+			D3D12_GPU_DESCRIPTOR_HANDLE si_temporalAOCoefficient,
+			D3D12_GPU_DESCRIPTOR_HANDLE si_normalDepth,
+			D3D12_GPU_DESCRIPTOR_HANDLE si_variance,
+			D3D12_GPU_DESCRIPTOR_HANDLE si_hitDistance,
+			D3D12_GPU_DESCRIPTOR_HANDLE si_depthPartialDerivative,
+			D3D12_GPU_DESCRIPTOR_HANDLE si_tspp,
+			D3D12_GPU_DESCRIPTOR_HANDLE uo_temporalAOCoefficient);
+		void BlurDisocclusion(
+			ID3D12GraphicsCommandList4*const cmdList,
+			ID3D12Resource* aoCoefficient,
+			D3D12_GPU_DESCRIPTOR_HANDLE si_depth,
+			D3D12_GPU_DESCRIPTOR_HANDLE si_blurStrength,
+			D3D12_GPU_DESCRIPTOR_HANDLE uio_aoCoefficient,
+			UINT width, UINT height,
+			UINT lowTsppBlurPasses);
 
-	__forceinline ID3D12Resource* CoefficientSquaredMeanMapResource();
-	__forceinline constexpr CD3DX12_GPU_DESCRIPTOR_HANDLE CoefficientSquaredMeanMapUav() const;
+		__forceinline constexpr UINT Width() const;
+		__forceinline constexpr UINT Height() const;
 
-	__forceinline ID3D12Resource* CachedCoefficientSquaredMeanMapResource();
-	__forceinline constexpr CD3DX12_GPU_DESCRIPTOR_HANDLE CachedCoefficientSquaredMeanMapSrv() const;
+		__forceinline const AOResourcesType& AOResources() const;
+		__forceinline const AOResourcesGpuDescriptors& AOResourcesGpuDescriptors() const;
 
-	__forceinline ID3D12Resource* RayHitDistanceMapResource();
-	__forceinline constexpr CD3DX12_GPU_DESCRIPTOR_HANDLE RayHitDistanceMapUav() const;
+		__forceinline const TemporalCachesType& TemporalCaches() const;
+		__forceinline const TemporalCachesGpuDescriptors& TemporalCachesGpuDescriptors() const;
 
-	__forceinline ID3D12Resource* CachedRayHitDistanceMapResource();
-	__forceinline constexpr CD3DX12_GPU_DESCRIPTOR_HANDLE CachedRayHitDistanceMapSrv() const;
+		__forceinline const LocalMeanVarianceResourcesType& LocalMeanVarianceResources() const;
+		__forceinline const LocalMeanVarianceResourcesGpuDescriptors& LocalMeanVarianceResourcesGpuDescriptors() const;
 
-	__forceinline ID3D12Resource* RawLocalMeanVarianceMapResource();
-	__forceinline constexpr CD3DX12_GPU_DESCRIPTOR_HANDLE RawLocalMeanVarianceMapSrv() const;
-	__forceinline constexpr CD3DX12_GPU_DESCRIPTOR_HANDLE RawLocalMeanVarianceMapUav() const;
+		__forceinline const AOVarianceResourcesType& AOVarianceResources() const;
+		__forceinline const AOVarianceResourcesGpuDescriptors& AOVarianceResourcesGpuDescriptors() const;
 
-	__forceinline ID3D12Resource* SmoothedLocalMeanVarianceMapResource();
-	__forceinline constexpr CD3DX12_GPU_DESCRIPTOR_HANDLE SmoothedLocalMeanVarianceMapSrv() const;
-	__forceinline constexpr CD3DX12_GPU_DESCRIPTOR_HANDLE SmoothedLocalMeanVarianceMapUav() const;
+		__forceinline ID3D12Resource* PrevFrameNormalDepth();
+		__forceinline constexpr CD3DX12_GPU_DESCRIPTOR_HANDLE PrevFrameNormalDepthSrv() const;
 
-	__forceinline ID3D12Resource* RawVarianceMapResource();
-	__forceinline constexpr CD3DX12_GPU_DESCRIPTOR_HANDLE RawVarianceMapSrv() const;
-	__forceinline constexpr CD3DX12_GPU_DESCRIPTOR_HANDLE RawVarianceMapUav() const;
+		__forceinline ID3D12Resource* TsppCoefficientSquaredMeanRayHitDistance();
+		__forceinline constexpr CD3DX12_GPU_DESCRIPTOR_HANDLE TsppCoefficientSquaredMeanRayHitDistanceSrv() const;
+		__forceinline constexpr CD3DX12_GPU_DESCRIPTOR_HANDLE TsppCoefficientSquaredMeanRayHitDistanceUav() const;
 
-	__forceinline ID3D12Resource* SmoothedVarianceMapResource();
-	__forceinline constexpr CD3DX12_GPU_DESCRIPTOR_HANDLE SmoothedVarianceMapSrv() const;
-	__forceinline constexpr CD3DX12_GPU_DESCRIPTOR_HANDLE SmoothedVarianceMapUav() const;
+		__forceinline ID3D12Resource* DisocclusionBlurStrengthResource();
+		__forceinline constexpr CD3DX12_GPU_DESCRIPTOR_HANDLE DisocclusionBlurStrengthSrv() const;
+		__forceinline constexpr CD3DX12_GPU_DESCRIPTOR_HANDLE DisocclusionBlurStrengthUav() const;
 
-	void BuildDescriptors(CD3DX12_CPU_DESCRIPTOR_HANDLE& hCpu, CD3DX12_GPU_DESCRIPTOR_HANDLE& hGpu, UINT descSize);
+		__forceinline const TemporalAOCoefficientsType& TemporalAOCoefficients();
+		__forceinline const TemporalAOCoefficientsGpuDescriptors& TemporalAOCoefficientsGpuDescriptors() const;
 
-	bool OnResize(ID3D12GraphicsCommandList* cmdList, UINT width, UINT height);
+		__forceinline ID3D12Resource* DepthPartialDerivativeMapResource();
+		__forceinline constexpr CD3DX12_GPU_DESCRIPTOR_HANDLE DepthPartialDerivativeSrv() const;
+		__forceinline constexpr CD3DX12_GPU_DESCRIPTOR_HANDLE DepthPartialDerivativeUav() const;
 
-	void Transite(ID3D12GraphicsCommandList* cmdList, bool srvToUav);
-	void Switch();
+		__forceinline constexpr UINT TemporalCurrentFrameResourceIndex() const;
+		UINT MoveToNextFrame();
 
-private:
-	void BuildDescriptors();
-	bool BuildResource(ID3D12GraphicsCommandList* cmdList);
-	
-public:
-	static const DXGI_FORMAT AmbientMapFormat = DXGI_FORMAT_R16_UNORM;
-	static const DXGI_FORMAT NormalDepthMapFormat = DXGI_FORMAT_R8G8B8A8_SNORM;
-	static const DXGI_FORMAT LinearDepthDerivativesMapFormat = DXGI_FORMAT_R16G16_FLOAT;
-	static const DXGI_FORMAT TsppCoefficientSquaredMeanRayHitDistanceFormat = DXGI_FORMAT_R16G16B16A16_UINT;
-	static const DXGI_FORMAT DisocclusionBlurStrengthMapFormat = DXGI_FORMAT_R8_UNORM;
-	static const DXGI_FORMAT TemporalSuperSamplingMapFormat = DXGI_FORMAT_R8_UINT;
-	static const DXGI_FORMAT TemporalAOCoefficientMapFormat = DXGI_FORMAT_R16_FLOAT;
-	static const DXGI_FORMAT CoefficientSquaredMeanMapFormat = DXGI_FORMAT_R16_FLOAT;
-	static const DXGI_FORMAT RayHitDistanceMapFormat = DXGI_FORMAT_R16_FLOAT;
-	static const DXGI_FORMAT LocalMeanVarianceMapFormat = DXGI_FORMAT_R16G16_FLOAT;
-	static const DXGI_FORMAT VarianceMapFormat = DXGI_FORMAT_R16_FLOAT;
+		__forceinline constexpr UINT TemporalCurrentFrameTemporalAOCoefficientResourceIndex() const;
+		UINT MoveToNextFrameTemporalAOCoefficient();
 
-	static const float AmbientMapClearValues[1];
+		void BuildDescriptors(CD3DX12_CPU_DESCRIPTOR_HANDLE& hCpu, CD3DX12_GPU_DESCRIPTOR_HANDLE& hGpu, UINT descSize);
 
-private:
-	ID3D12Device* md3dDevice;
+		bool OnResize(ID3D12GraphicsCommandList* cmdList, UINT width, UINT height);
 
-	UINT mWidth;
-	UINT mHeight;
+		void Transite(ID3D12GraphicsCommandList* cmdList, bool srvToUav);
+		void Switch();
 
-	RaytracedAO::AOResourcesType mAOResources;
-	RaytracedAO::AOResourcesCpuDescriptors mhAOResourcesCpus;
-	RaytracedAO::AOResourcesGpuDescriptors mhAOResourcesGpus;
+	private:
+		void BuildDescriptors();
+		bool BuildResource(ID3D12GraphicsCommandList* cmdList);
 
-	RaytracedAO::TemporalCachesType mTemporalCaches;
-	RaytracedAO::TemporalCachesCpuDescriptors mhTemporalCachesCpus;
-	RaytracedAO::TemporalCachesGpuDescriptors mhTemporalCachesGpus;
+	public:
 
-	Microsoft::WRL::ComPtr<ID3D12Resource> mCachedNormalDepthMap;
-	Microsoft::WRL::ComPtr<ID3D12Resource> mCachedNormalDepthMapUploadBuffer;
+		static const float AmbientMapClearValues[1];
 
-	Microsoft::WRL::ComPtr<ID3D12Resource> mLinearDepthDerivativesMap;
+	private:
+		ID3D12Device5* md3dDevice;
+		ShaderManager* mShaderManager;
 
-	Microsoft::WRL::ComPtr<ID3D12Resource> mTsppCoefficientSquaredMeanRayHitDistanceMap;
+		std::unordered_map<std::string, Microsoft::WRL::ComPtr<ID3D12RootSignature>> mRootSignatures;
+		std::unordered_map<std::string, Microsoft::WRL::ComPtr<ID3D12PipelineState>> mPSOs;
+		Microsoft::WRL::ComPtr<ID3D12StateObject> mDXRPSO;
+		Microsoft::WRL::ComPtr<ID3D12StateObjectProperties> mDXRPSOProp;
 
-	Microsoft::WRL::ComPtr<ID3D12Resource> mDisocclusionBlurStrengthMap;
+		std::unordered_map<std::string, Microsoft::WRL::ComPtr<ID3D12Resource>> mShaderTables;
 
-	Microsoft::WRL::ComPtr<ID3D12Resource> mTemporalAOCoefficientMaps[2];
-	
-	Microsoft::WRL::ComPtr<ID3D12Resource> mCoefficientSquaredMeanMaps[2];
+		UINT mWidth;
+		UINT mHeight;
 
-	Microsoft::WRL::ComPtr<ID3D12Resource> mRayHitDistanceMaps[2];
+		Rtao::AOResourcesType mAOResources;
+		Rtao::AOResourcesCpuDescriptors mhAOResourcesCpus;
+		Rtao::AOResourcesGpuDescriptors mhAOResourcesGpus;
 
-	Microsoft::WRL::ComPtr<ID3D12Resource> mLocalMeanVarianceMaps[2];
+		Rtao::TemporalCachesType mTemporalCaches;
+		Rtao::TemporalCachesCpuDescriptors mhTemporalCachesCpus;
+		Rtao::TemporalCachesGpuDescriptors mhTemporalCachesGpus;
 
-	Microsoft::WRL::ComPtr<ID3D12Resource> mVarianceMaps[2];
-	
-	CD3DX12_CPU_DESCRIPTOR_HANDLE mhCachedNormalDepthMapCpuSrv;
-	CD3DX12_GPU_DESCRIPTOR_HANDLE mhCachedNormalDepthMapGpuSrv;
+		Rtao::LocalMeanVarianceResourcesType mLocalMeanVarianceResources;
+		Rtao::LocalMeanVarianceResourcesCpuDescriptors mhLocalMeanVarianceResourcesCpus;
+		Rtao::LocalMeanVarianceResourcesGpuDescriptors mhLocalMeanVarianceResourcesGpus;
 
-	CD3DX12_CPU_DESCRIPTOR_HANDLE mhLinearDepthDerivativesMapCpuUav;
-	CD3DX12_GPU_DESCRIPTOR_HANDLE mhLinearDepthDerivativesMapGpuUav;
+		Rtao::AOVarianceResourcesType mAOVarianceResources;
+		Rtao::AOVarianceResourcesCpuDescriptors mhAOVarianceResourcesCpus;
+		Rtao::AOVarianceResourcesGpuDescriptors mhAOVarianceResourcesGpus;
 
-	CD3DX12_CPU_DESCRIPTOR_HANDLE mhTsppCoefficientSquaredMeanRayHitDistanceMapCpuUav;
-	CD3DX12_GPU_DESCRIPTOR_HANDLE mhTsppCoefficientSquaredMeanRayHitDistanceMapGpuUav;
+		Microsoft::WRL::ComPtr<ID3D12Resource> mPrevFrameNormalDepth;
+		Microsoft::WRL::ComPtr<ID3D12Resource> mPrevFrameNormalDepthUploadBuffer;
+		CD3DX12_CPU_DESCRIPTOR_HANDLE mhPrevFrameNormalDepthCpuSrv;
+		CD3DX12_GPU_DESCRIPTOR_HANDLE mhPrevFrameNormalDepthGpuSrv;
 
-	CD3DX12_CPU_DESCRIPTOR_HANDLE mhDisocclusionBlurStrengthMapCpuSrv;
-	CD3DX12_GPU_DESCRIPTOR_HANDLE mhDisocclusionBlurStrengthMapGpuSrv;
-	CD3DX12_CPU_DESCRIPTOR_HANDLE mhDisocclusionBlurStrengthMapCpuUav;
-	CD3DX12_GPU_DESCRIPTOR_HANDLE mhDisocclusionBlurStrengthMapGpuUav;
-	
-	CD3DX12_CPU_DESCRIPTOR_HANDLE mhTemporalAOCoefficientMapCpuSrvs[2];
-	CD3DX12_GPU_DESCRIPTOR_HANDLE mhTemporalAOCoefficientMapGpuSrvs[2];
-	CD3DX12_CPU_DESCRIPTOR_HANDLE mhTemporalAOCoefficientMapCpuUavs[2];
-	CD3DX12_GPU_DESCRIPTOR_HANDLE mhTemporalAOCoefficientMapGpuUavs[2];
+		Microsoft::WRL::ComPtr<ID3D12Resource> mTsppCoefficientSquaredMeanRayHitDistance;
+		CD3DX12_CPU_DESCRIPTOR_HANDLE mhTsppCoefficientSquaredMeanRayHitDistanceCpuSrv;
+		CD3DX12_GPU_DESCRIPTOR_HANDLE mhTsppCoefficientSquaredMeanRayHitDistanceGpuSrv;
+		CD3DX12_CPU_DESCRIPTOR_HANDLE mhTsppCoefficientSquaredMeanRayHitDistanceCpuUav;
+		CD3DX12_GPU_DESCRIPTOR_HANDLE mhTsppCoefficientSquaredMeanRayHitDistanceGpuUav;
 
-	CD3DX12_CPU_DESCRIPTOR_HANDLE mhCoefficientSquaredMeanMapCpuSrvs[2];
-	CD3DX12_GPU_DESCRIPTOR_HANDLE mhCoefficientSquaredMeanMapGpuSrvs[2];
-	CD3DX12_CPU_DESCRIPTOR_HANDLE mhCoefficientSquaredMeanMapCpuUavs[2];
-	CD3DX12_GPU_DESCRIPTOR_HANDLE mhCoefficientSquaredMeanMapGpuUavs[2];
+		Microsoft::WRL::ComPtr<ID3D12Resource> mDisocclusionBlurStrength;
+		CD3DX12_CPU_DESCRIPTOR_HANDLE mhDisocclusionBlurStrengthCpuSrv;
+		CD3DX12_GPU_DESCRIPTOR_HANDLE mhDisocclusionBlurStrengthGpuSrv;
+		CD3DX12_CPU_DESCRIPTOR_HANDLE mhDisocclusionBlurStrengthCpuUav;
+		CD3DX12_GPU_DESCRIPTOR_HANDLE mhDisocclusionBlurStrengthGpuUav;
 
-	CD3DX12_CPU_DESCRIPTOR_HANDLE mhRayHitDistanceMapCpuSrvs[2];
-	CD3DX12_GPU_DESCRIPTOR_HANDLE mhRayHitDistanceMapGpuSrvs[2];
-	CD3DX12_CPU_DESCRIPTOR_HANDLE mhRayHitDistanceMapCpuUavs[2];
-	CD3DX12_GPU_DESCRIPTOR_HANDLE mhRayHitDistanceMapGpuUavs[2];
+		Rtao::TemporalAOCoefficientsType mTemporalAOCoefficients;
+		Rtao::TemporalAOCoefficientsCpuDescriptors mhTemporalAOCoefficientsCpus;
+		Rtao::TemporalAOCoefficientsGpuDescriptors mhTemporalAOCoefficientsGpus;
 
-	CD3DX12_CPU_DESCRIPTOR_HANDLE mhLocalMeanVarianceMapCpuSrvs[2];
-	CD3DX12_GPU_DESCRIPTOR_HANDLE mhLocalMeanVarianceMapGpuSrvs[2];
-	CD3DX12_CPU_DESCRIPTOR_HANDLE mhLocalMeanVarianceMapCpuUavs[2];
-	CD3DX12_GPU_DESCRIPTOR_HANDLE mhLocalMeanVarianceMapGpuUavs[2];
+		Microsoft::WRL::ComPtr<ID3D12Resource> mDepthPartialDerivative;
+		CD3DX12_CPU_DESCRIPTOR_HANDLE mhDepthPartialDerivativeCpuSrv;
+		CD3DX12_GPU_DESCRIPTOR_HANDLE mhDepthPartialDerivativeGpuSrv;
+		CD3DX12_CPU_DESCRIPTOR_HANDLE mhDepthPartialDerivativeCpuUav;
+		CD3DX12_GPU_DESCRIPTOR_HANDLE mhDepthPartialDerivativeGpuUav;
 
-	CD3DX12_CPU_DESCRIPTOR_HANDLE mhVarianceMapCpuSrvs[2];
-	CD3DX12_GPU_DESCRIPTOR_HANDLE mhVarianceMapGpuSrvs[2];
-	CD3DX12_CPU_DESCRIPTOR_HANDLE mhVarianceMapCpuUavs[2];
-	CD3DX12_GPU_DESCRIPTOR_HANDLE mhVarianceMapGpuUavs[2];
+		bool bSwitch;
+		bool bResourceState;
 
-	bool bSwitch;
-	bool bResourceState;
-};
+		UINT mTemporalCurrentFrameResourceIndex;
+		UINT mTemporalCurrentFrameTemporalAOCeofficientResourceIndex;
+	};
+}	
 
-constexpr UINT Rtao::Width() const {
+constexpr UINT Rtao::RtaoClass::Width() const {
 	return mWidth;
 }
 
-constexpr UINT Rtao::Height() const {
+constexpr UINT Rtao::RtaoClass::Height() const {
 	return mHeight;
 }
 
-const RaytracedAO::AOResourcesType& Rtao::AOResources() const {
+const Rtao::AOResourcesType& Rtao::RtaoClass::AOResources() const {
 	return mAOResources;
 }
-
-const RaytracedAO::AOResourcesGpuDescriptors& Rtao::AOResourcesGpuDescriptors() const {
+const Rtao::AOResourcesGpuDescriptors& Rtao::RtaoClass::AOResourcesGpuDescriptors() const {
 	return mhAOResourcesGpus;
 }
 
-const RaytracedAO::TemporalCachesType& Rtao::TemporalCaches() const {
+const Rtao::TemporalCachesType& Rtao::RtaoClass::TemporalCaches() const {
 	return mTemporalCaches;
 }
-
-const RaytracedAO::TemporalCachesGpuDescriptors& Rtao::TemporalCachesGpuDescriptors() const {
+const Rtao::TemporalCachesGpuDescriptors& Rtao::RtaoClass::TemporalCachesGpuDescriptors() const {
 	return mhTemporalCachesGpus;
 }
 
-ID3D12Resource* Rtao::CachedNormalDepthMapResource() {
-	return mCachedNormalDepthMap.Get();
+const Rtao::LocalMeanVarianceResourcesType& Rtao::RtaoClass::LocalMeanVarianceResources() const {
+	return mLocalMeanVarianceResources;
 }
-constexpr CD3DX12_GPU_DESCRIPTOR_HANDLE Rtao::CachedNormalDepthMapSrv() const {
-	return mhCachedNormalDepthMapGpuSrv;
-}
-
-ID3D12Resource* Rtao::LinearDepthDerivativesMapResource() {
-	return mLinearDepthDerivativesMap.Get();
-}
-constexpr CD3DX12_GPU_DESCRIPTOR_HANDLE Rtao::LinearDepthDerivativesMapUav() const {
-	return mhLinearDepthDerivativesMapGpuUav;
+const Rtao::LocalMeanVarianceResourcesGpuDescriptors& Rtao::RtaoClass::LocalMeanVarianceResourcesGpuDescriptors() const {
+	return mhLocalMeanVarianceResourcesGpus;
 }
 
-ID3D12Resource* Rtao::TsppCoefficientSquaredMeanRayHitDistanceMapResource() {
-	return mTsppCoefficientSquaredMeanRayHitDistanceMap.Get();
+const Rtao::AOVarianceResourcesType& Rtao::RtaoClass::AOVarianceResources() const {
+	return mAOVarianceResources;
 }
-constexpr CD3DX12_GPU_DESCRIPTOR_HANDLE Rtao::TsppCoefficientSquaredMeanRayHitDistanceMapUav() const {
-	return mhTsppCoefficientSquaredMeanRayHitDistanceMapGpuUav;
-}
-
-ID3D12Resource* Rtao::DisocclusionBlurStrengthMapResource() {
-	return mDisocclusionBlurStrengthMap.Get();
-}
-constexpr CD3DX12_GPU_DESCRIPTOR_HANDLE Rtao::DisocclusionBlurStrengthMapSrv() const {
-	return mhDisocclusionBlurStrengthMapGpuSrv;
-}
-constexpr CD3DX12_GPU_DESCRIPTOR_HANDLE Rtao::DisocclusionBlurStrengthMapUav() const {
-	return mhDisocclusionBlurStrengthMapGpuUav;
+const Rtao::AOVarianceResourcesGpuDescriptors& Rtao::RtaoClass::AOVarianceResourcesGpuDescriptors() const {
+	return mhAOVarianceResourcesGpus;
 }
 
-ID3D12Resource* Rtao::TemporalAOCoefficientMapResource() {
-	return mTemporalAOCoefficientMaps[bSwitch].Get();
+ID3D12Resource* Rtao::RtaoClass::PrevFrameNormalDepth() {
+	return mPrevFrameNormalDepth.Get();
 }
-constexpr CD3DX12_GPU_DESCRIPTOR_HANDLE Rtao::TemporalAOCoefficientMapUav() const {
-	return mhTemporalAOCoefficientMapGpuUavs[bSwitch];
-}
-
-ID3D12Resource* Rtao::CachedTemporalAOCoefficientMapResource() {
-	return mTemporalAOCoefficientMaps[!bSwitch].Get();
-}
-constexpr CD3DX12_GPU_DESCRIPTOR_HANDLE Rtao::CachedTemporalAOCoefficientMapSrv() const {
-	return mhTemporalAOCoefficientMapGpuSrvs[!bSwitch];
+constexpr CD3DX12_GPU_DESCRIPTOR_HANDLE Rtao::RtaoClass::PrevFrameNormalDepthSrv() const {
+	return mhPrevFrameNormalDepthGpuSrv;
 }
 
-ID3D12Resource* Rtao::CoefficientSquaredMeanMapResource() {
-	return mCoefficientSquaredMeanMaps[bSwitch].Get();
+ID3D12Resource* Rtao::RtaoClass::TsppCoefficientSquaredMeanRayHitDistance() {
+	return mTsppCoefficientSquaredMeanRayHitDistance.Get();
 }
-constexpr CD3DX12_GPU_DESCRIPTOR_HANDLE Rtao::CoefficientSquaredMeanMapUav() const {
-	return mhCoefficientSquaredMeanMapGpuUavs[bSwitch];
+constexpr CD3DX12_GPU_DESCRIPTOR_HANDLE Rtao::RtaoClass::TsppCoefficientSquaredMeanRayHitDistanceSrv() const {
+	return mhTsppCoefficientSquaredMeanRayHitDistanceGpuSrv;
 }
-
-ID3D12Resource* Rtao::CachedCoefficientSquaredMeanMapResource() {
-	return mCoefficientSquaredMeanMaps[!bSwitch].Get();
-}
-constexpr CD3DX12_GPU_DESCRIPTOR_HANDLE Rtao::CachedCoefficientSquaredMeanMapSrv() const {
-	return mhCoefficientSquaredMeanMapGpuSrvs[!bSwitch];
+constexpr CD3DX12_GPU_DESCRIPTOR_HANDLE Rtao::RtaoClass::TsppCoefficientSquaredMeanRayHitDistanceUav() const {
+	return mhTsppCoefficientSquaredMeanRayHitDistanceGpuUav;
 }
 
-ID3D12Resource* Rtao::RayHitDistanceMapResource() {
-	return mRayHitDistanceMaps[bSwitch].Get();
+ID3D12Resource* Rtao::RtaoClass::DisocclusionBlurStrengthResource() {
+	return mDisocclusionBlurStrength.Get();
 }
-constexpr CD3DX12_GPU_DESCRIPTOR_HANDLE Rtao::RayHitDistanceMapUav() const {
-	return mhRayHitDistanceMapGpuUavs[bSwitch];
+constexpr CD3DX12_GPU_DESCRIPTOR_HANDLE Rtao::RtaoClass::DisocclusionBlurStrengthSrv() const {
+	return mhDisocclusionBlurStrengthGpuSrv;
 }
-
-ID3D12Resource* Rtao::CachedRayHitDistanceMapResource() {
-	return mRayHitDistanceMaps[!bSwitch].Get();
-}
-constexpr CD3DX12_GPU_DESCRIPTOR_HANDLE Rtao::CachedRayHitDistanceMapSrv() const {
-	return mhRayHitDistanceMapGpuUavs[!bSwitch];
+constexpr CD3DX12_GPU_DESCRIPTOR_HANDLE Rtao::RtaoClass::DisocclusionBlurStrengthUav() const {
+	return mhDisocclusionBlurStrengthGpuUav;
 }
 
-ID3D12Resource* Rtao::RawLocalMeanVarianceMapResource() {
-	return mLocalMeanVarianceMaps[0].Get();
+const Rtao::TemporalAOCoefficientsType& Rtao::RtaoClass::TemporalAOCoefficients() {
+	return mTemporalAOCoefficients;
 }
-constexpr CD3DX12_GPU_DESCRIPTOR_HANDLE Rtao::RawLocalMeanVarianceMapSrv() const {
-	return mhLocalMeanVarianceMapGpuSrvs[0];
-}
-
-constexpr CD3DX12_GPU_DESCRIPTOR_HANDLE Rtao::RawLocalMeanVarianceMapUav() const {
-	return mhLocalMeanVarianceMapGpuUavs[0];
+const Rtao::TemporalAOCoefficientsGpuDescriptors& Rtao::RtaoClass::TemporalAOCoefficientsGpuDescriptors() const {
+	return mhTemporalAOCoefficientsGpus;
 }
 
-ID3D12Resource* Rtao::SmoothedLocalMeanVarianceMapResource() {
-	return mLocalMeanVarianceMaps[1].Get();
+ID3D12Resource* Rtao::RtaoClass::DepthPartialDerivativeMapResource() {
+	return mDepthPartialDerivative.Get();
 }
-constexpr CD3DX12_GPU_DESCRIPTOR_HANDLE Rtao::SmoothedLocalMeanVarianceMapSrv() const {
-	return mhLocalMeanVarianceMapGpuSrvs[1];
+constexpr CD3DX12_GPU_DESCRIPTOR_HANDLE Rtao::RtaoClass::DepthPartialDerivativeSrv() const {
+	return mhDepthPartialDerivativeGpuSrv;
 }
-constexpr CD3DX12_GPU_DESCRIPTOR_HANDLE Rtao::SmoothedLocalMeanVarianceMapUav() const {
-	return mhLocalMeanVarianceMapGpuUavs[1];
-}
-
-ID3D12Resource* Rtao::RawVarianceMapResource() {
-	return mVarianceMaps[0].Get();
-}
-constexpr CD3DX12_GPU_DESCRIPTOR_HANDLE Rtao::RawVarianceMapSrv() const {
-	return mhVarianceMapGpuSrvs[0];
-}
-constexpr CD3DX12_GPU_DESCRIPTOR_HANDLE Rtao::RawVarianceMapUav() const {
-	return mhVarianceMapGpuUavs[0];
+constexpr CD3DX12_GPU_DESCRIPTOR_HANDLE Rtao::RtaoClass::DepthPartialDerivativeUav() const {
+	return mhDepthPartialDerivativeGpuUav;
 }
 
-ID3D12Resource* Rtao::SmoothedVarianceMapResource() {
-	return mVarianceMaps[1].Get();
+constexpr UINT Rtao::RtaoClass::TemporalCurrentFrameResourceIndex() const {
+	return mTemporalCurrentFrameResourceIndex;
 }
-constexpr CD3DX12_GPU_DESCRIPTOR_HANDLE Rtao::SmoothedVarianceMapSrv() const {
-	return mhVarianceMapGpuSrvs[1];
-}
-constexpr CD3DX12_GPU_DESCRIPTOR_HANDLE Rtao::SmoothedVarianceMapUav() const {
-	return mhVarianceMapGpuUavs[1];
+
+constexpr UINT Rtao::RtaoClass::TemporalCurrentFrameTemporalAOCoefficientResourceIndex() const {
+	return mTemporalCurrentFrameTemporalAOCeofficientResourceIndex;
 }

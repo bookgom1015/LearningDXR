@@ -1,7 +1,15 @@
 #ifndef __GIZMO_HLSL__
 #define __GIZMO_HLSL__
 
-#include "Common.hlsli"
+#ifndef HLSL
+#define HLSL
+#endif
+
+#include "./../../include/HlslCompaction.h"
+#include "LightingUtil.hlsli"
+#include "Samplers.hlsli"
+
+ConstantBuffer<PassConstants> cbPass : register(b0);
 
 static const float3 gVertices[6] = {
 	float3(0.0f, 0.0f, 0.0f),

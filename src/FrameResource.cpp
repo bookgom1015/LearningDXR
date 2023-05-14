@@ -16,6 +16,7 @@ bool FrameResource::Initialize() {
 	));
 
 	CheckIsValid(PassCB.Initialize(Device, PassCount, true));
+	CheckIsValid(DebugCB.Initialize(Device, PassCount, true));
 	CheckIsValid(ObjectSB.Initialize(Device, ObjectCount, false));
 	CheckIsValid(MaterialSB.Initialize(Device, MaterialCount, false));
 	CheckIsValid(BlurCB.Initialize(Device, 1, true));
@@ -23,6 +24,8 @@ bool FrameResource::Initialize() {
 	CheckIsValid(RtaoCB.Initialize(Device, 1, true));
 	CheckIsValid(CrossBilateralFilterCB.Initialize(Device, 1, true));
 	CheckIsValid(CalcLocalMeanVarCB.Initialize(Device, 1, true));
+	CheckIsValid(TsppBlendCB.Initialize(Device, 1, true));
+	CheckIsValid(AtrousFilterCB.Initialize(Device, 1, true));
 
 	return true;
 }

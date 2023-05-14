@@ -13,8 +13,24 @@
 #define NUM_SPOT_LIGHTS 0
 #endif
 
-#include "Common.hlsli"
+#ifndef HLSL
+#define HLSL
+#endif
+
+#include "./../../include/HlslCompaction.h"
 #include "ShadingHelpers.hlsli"
+#include "LightingUtil.hlsli"
+#include "Samplers.hlsli"
+
+ConstantBuffer<PassConstants> cbPass : register(b0);
+
+Texture2D<float4> gColorMap				: register(t0);
+Texture2D<float4> gAlbedoMap			: register(t1);
+Texture2D<float3> gNormalMap			: register(t2);
+Texture2D<float> gDepthMap				: register(t3);
+Texture2D<float4> gSpecularMap			: register(t4);
+Texture2D<float> gShadowMap				: register(t5);
+Texture2D<float> gAmbientCoefficientMap	: register(t6);
 
 static const float2 gTexCoords[6] = {
 	float2(0.0f, 1.0f),
@@ -60,7 +76,7 @@ float4 PS(VertexOut pin) : SV_Target {
 	float3 posV = (pz / pin.PosV.z) * pin.PosV;
 	float4 posW = mul(float4(posV, 1.0f), cbPass.InvView);
 
-	float3 normalW = normalize(gNormalDepthMap.Sample(gsamPointClamp, pin.TexC).rgb);
+	float3 normalW = normalize(gNormalMap.Sample(gsamPointClamp, pin.TexC).rgb);
 	float3 toEyeW = normalize(cbPass.EyePosW - posW.xyz);
 
 	float4 colorSample = gColorMap.Sample(gsamPointClamp, pin.TexC);
@@ -70,11 +86,11 @@ float4 PS(VertexOut pin) : SV_Target {
 	float ambientAccess;
 	{
 		uint width, height;
-		guDxrAmbientMap0.GetDimensions(width, height);
+		gAmbientCoefficientMap.GetDimensions(width, height);
 
 		uint2 index = uint2(pin.TexC.x * width - 0.5f, pin.TexC.y * height - 0.5f);
 
-		ambientAccess = guDxrAmbientMap0[index];
+		ambientAccess = gAmbientCoefficientMap[index];
 	}
 
 	float4 ambient = ambientAccess * cbPass.AmbientLight * diffuseAlbedo;
@@ -84,7 +100,7 @@ float4 PS(VertexOut pin) : SV_Target {
 	Material mat = { albedoSample, specular.rgb, shiness };
 
 	float3 shadowFactor = (float3)1.0f;
-	shadowFactor[0] = gDxrShadowMap0.Sample(gsamPointClamp, pin.TexC);
+	shadowFactor[0] = gShadowMap.Sample(gsamPointClamp, pin.TexC);
 
 	float4 directLight = ComputeLighting(cbPass.Lights, mat, posW, normalW, toEyeW, shadowFactor);
 

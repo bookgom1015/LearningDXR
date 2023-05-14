@@ -1,6 +1,15 @@
 #ifndef __SHADINGHELPERS_HLSLI__
 #define __SHADINGHELPERS_HLSLI__
 
+#define INFINITY (1.0/0.0)
+
+#define FLT_EPSILON     1.192092896e-07 // Smallest number such that 1.0 + FLT_EPSILON != 1.0
+#define FLT_MIN         1.175494351e-38 
+#define FLT_MAX         3.402823466e+38 
+#define FLT_10BIT_MIN   6.1e-5
+#define FLT_10BIT_MAX   6.5e4
+#define PI              3.1415926535897f
+
 float NdcDepthToViewDepth(float z_ndc, float4x4 proj) {
 	// z_ndc = A + B/viewZ, where proj[2,2]=A and proj[3,2]=B.
 	float viewZ = proj[3][2] / (z_ndc - proj[2][2]);
@@ -72,7 +81,7 @@ uint SmallestPowerOf2GreaterThan(uint x) {
 	return x + 1;
 }
 
-float FloatPrecision(in float x, uint numMantissaBits) {
+float FloatPrecision(float x, uint numMantissaBits) {
 	// Find the exponent range the value is in.
 	uint nextPowerOfTwo = SmallestPowerOf2GreaterThan(x);
 	float exponentRange = nextPowerOfTwo - (nextPowerOfTwo >> 1);
@@ -97,7 +106,7 @@ float2 HalfToFloat2(uint val) {
 }
 
 // Remap partial depth derivatives at z0 from [1,1] pixel offset to a new pixel offset.
-float2 RemapDdxy(in float z0, in float2 ddxy, in float2 pixelOffset) {
+float2 RemapDdxy(float z0, float2 ddxy, float2 pixelOffset) {
 	// Perspective correction for non-linear depth interpolation.
 	// Ref: https://www.scratchapixel.com/lessons/3d-basic-rendering/rasterization-practical-implementation/visibility-problem-depth-buffer-depth-interpolation
 	// Given a linear depth interpolation for finding z at offset q along z0 to z1
@@ -108,6 +117,21 @@ float2 RemapDdxy(in float z0, in float2 ddxy, in float2 pixelOffset) {
 	//      z = (z0 + ddxy) / (1 + (1-q) / z0 * ddxy) 
 	float2 z = (z0 + ddxy) / (1 + ((1 - pixelOffset) / z0) * ddxy);
 	return sign(pixelOffset) * (z - z0);
+}
+
+// Returns an approximate surface dimensions covered in a pixel. 
+// This is a simplified model assuming pixel to pixel view angles are the same.
+// z - linear depth of the surface at the pixel
+// ddxy - partial depth derivatives
+// tan_a - tangent of a per pixel view angle 
+float2 ApproximateProjectedSurfaceDimensionsPerPixel(float z, float2 ddxy, float tan_a) {
+	// Surface dimensions for a surface parallel at z.
+	float2 dx = tan_a * z;
+
+	// Using Pythagorean theorem approximate the surface dimensions given the ddxy.
+	float2 w = sqrt(dx * dx + ddxy * ddxy);
+
+	return w;
 }
 
 #endif // __SHADINGHELPERS_HLSLI__

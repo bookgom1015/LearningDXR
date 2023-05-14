@@ -1,19 +1,18 @@
 #include "Ssao.h"
 #include "Logger.h"
+#include "ShaderManager.h"
+#include "D3D12Util.h"
 
 #include <DirectXColors.h>
 
 using namespace DirectX;
 using namespace DirectX::PackedVector;
+using namespace Ssao;
 
-const float Ssao::AmbientMapClearValues[4] = { 1.0f, 1.0f, 1.0f, 1.0f };
 
-Ssao::Ssao() {}
-
-Ssao::~Ssao() {}
-
-bool Ssao::Initialize(ID3D12Device* device, ID3D12GraphicsCommandList* cmdList, UINT width, UINT height, UINT divider) {
+bool SsaoClass::Initialize(ID3D12Device* device, ID3D12GraphicsCommandList*const cmdList, ShaderManager*const manager, UINT width, UINT height, UINT divider) {
 	md3dDevice = device;
+	mShaderManager = manager;
 
 	mWidth = width / divider;
 	mHeight = height / divider;
@@ -30,30 +29,122 @@ bool Ssao::Initialize(ID3D12Device* device, ID3D12GraphicsCommandList* cmdList, 
 	return true;
 }
 
-void Ssao::GetOffsetVectors(DirectX::XMFLOAT4 offsets[14]) {
+bool SsaoClass::CompileShaders(const std::wstring& filePath) {
+	const auto path = filePath + L"Ssao.hlsl";
+	auto vsInfo = D3D12ShaderInfo(path.c_str(), L"VS", L"vs_6_3");
+	auto psInfo = D3D12ShaderInfo(path.c_str(), L"PS", L"ps_6_3");
+	CheckIsValid(mShaderManager->CompileShader(vsInfo, "ssaoVS"));
+	CheckIsValid(mShaderManager->CompileShader(psInfo, "ssaoPS"));
+
+	return true;
+}
+
+bool SsaoClass::BuildRootSignature(const StaticSamplers& samplers) {
+	CD3DX12_ROOT_PARAMETER slotRootParameter[RootSignatureLayout::Count];
+
+	CD3DX12_DESCRIPTOR_RANGE texTables[2];
+	texTables[0].Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 2, 0, 0);
+	texTables[1].Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1, 2, 0);
+
+	slotRootParameter[RootSignatureLayout::ECB_SsaoPass].InitAsConstantBufferView(0);
+	slotRootParameter[RootSignatureLayout::ESI_NormalAndDepth].InitAsDescriptorTable(1, &texTables[0]);
+	slotRootParameter[RootSignatureLayout::ESI_RandomVector].InitAsDescriptorTable(1, &texTables[1]);
+
+	CD3DX12_ROOT_SIGNATURE_DESC rootSigDesc(
+		_countof(slotRootParameter), slotRootParameter,
+		static_cast<UINT>(samplers.size()), samplers.data(),
+		D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT
+	);
+	CheckIsValid(D3D12Util::CreateRootSignature(md3dDevice, rootSigDesc, &mRootSignature));
+
+	return true;
+}
+
+bool SsaoClass::BuildPso() {
+	D3D12_GRAPHICS_PIPELINE_STATE_DESC ssaoPsoDesc;
+	ZeroMemory(&ssaoPsoDesc, sizeof(D3D12_GRAPHICS_PIPELINE_STATE_DESC));
+	ssaoPsoDesc.InputLayout = { nullptr, 0 };
+	ssaoPsoDesc.pRootSignature = mRootSignature.Get();
+	{
+		auto vs = mShaderManager->GetDxcShader("ssaoVS");
+		auto ps = mShaderManager->GetDxcShader("ssaoPS");
+		ssaoPsoDesc.VS = {
+			reinterpret_cast<BYTE*>(vs->GetBufferPointer()),
+			vs->GetBufferSize()
+		};
+		ssaoPsoDesc.PS = {
+			reinterpret_cast<BYTE*>(ps->GetBufferPointer()),
+			ps->GetBufferSize()
+		};
+	}
+	ssaoPsoDesc.RasterizerState = CD3DX12_RASTERIZER_DESC(D3D12_DEFAULT);
+	ssaoPsoDesc.BlendState = CD3DX12_BLEND_DESC(D3D12_DEFAULT);
+	ssaoPsoDesc.DepthStencilState = CD3DX12_DEPTH_STENCIL_DESC(D3D12_DEFAULT);
+	ssaoPsoDesc.PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE;
+	ssaoPsoDesc.NumRenderTargets = 1;
+	ssaoPsoDesc.SampleMask = UINT_MAX;
+	ssaoPsoDesc.SampleDesc.Count = 1;
+	ssaoPsoDesc.SampleDesc.Quality = 0;
+	ssaoPsoDesc.RTVFormats[0] = Ssao::AmbientCoefficientFormat;
+	ssaoPsoDesc.DepthStencilState.DepthEnable = FALSE;
+	ssaoPsoDesc.DSVFormat = DXGI_FORMAT_UNKNOWN;
+	CheckHResult(md3dDevice->CreateGraphicsPipelineState(&ssaoPsoDesc, IID_PPV_ARGS(&mPSO)));
+
+	return true;
+}
+
+void SsaoClass::Run(
+		ID3D12GraphicsCommandList*const cmdList,
+		D3D12_GPU_VIRTUAL_ADDRESS cbAddress,
+		D3D12_GPU_DESCRIPTOR_HANDLE normalAndDepthSrv) {
+	cmdList->SetPipelineState(mPSO.Get());
+	cmdList->SetGraphicsRootSignature(mRootSignature.Get());
+
+	cmdList->RSSetViewports(1, &mViewport);
+	cmdList->RSSetScissorRects(1, &mScissorRect);
+
+	auto rawAmbientCoefficientRtv = mhResourcesCpuDescriptors[Resources::Descriptors::ER_AmbientCoefficient];
+	cmdList->OMSetRenderTargets(1, &rawAmbientCoefficientRtv, true, nullptr);
+	
+	cmdList->SetGraphicsRootConstantBufferView(RootSignatureLayout::ECB_SsaoPass, cbAddress);
+	cmdList->SetGraphicsRootDescriptorTable(RootSignatureLayout::ESI_NormalAndDepth, normalAndDepthSrv);
+	cmdList->SetGraphicsRootDescriptorTable(RootSignatureLayout::ESI_RandomVector, mhResourcesGpuDescriptors[Ssao::Resources::Descriptors::ES_RandomVector]);
+
+	cmdList->IASetVertexBuffers(0, 0, nullptr);
+	cmdList->IASetIndexBuffer(nullptr);
+	cmdList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+	cmdList->DrawInstanced(6, 1, 0, 0);
+}
+
+
+void SsaoClass::GetOffsetVectors(DirectX::XMFLOAT4 offsets[14]) {
 	std::copy(&mOffsets[0], &mOffsets[14], &offsets[0]);
 }
 
-void Ssao::BuildDescriptors(
-	CD3DX12_CPU_DESCRIPTOR_HANDLE hCpuSrv,
-	CD3DX12_GPU_DESCRIPTOR_HANDLE hGpuSrv,
-	CD3DX12_CPU_DESCRIPTOR_HANDLE hCpuRtv,
-	UINT descSize, UINT rtvDescSize) {
-	mhAmbientMap0CpuSrv = hCpuSrv;
-	mhAmbientMap0GpuSrv = hGpuSrv;
-	mhAmbientMap0CpuRtv = hCpuRtv;
-
-	mhAmbientMap1CpuSrv = hCpuSrv.Offset(1, descSize);
-	mhAmbientMap1GpuSrv = hGpuSrv.Offset(1, descSize);
-	mhAmbientMap1CpuRtv = hCpuRtv.Offset(1, rtvDescSize);
-
-	mhRandomVectorMapCpuSrv = hCpuSrv.Offset(1, descSize);
-	mhRandomVectorMapGpuSrv = hGpuSrv.Offset(1, descSize);
+void SsaoClass::BuildDescriptors(
+		CD3DX12_CPU_DESCRIPTOR_HANDLE& hCpuSrv,
+		CD3DX12_GPU_DESCRIPTOR_HANDLE& hGpuSrv,
+		CD3DX12_CPU_DESCRIPTOR_HANDLE& hCpuRtv,
+		UINT descSize, UINT rtvDescSize) {
+	mhResourcesCpuDescriptors[Resources::Descriptors::ES_AmbientCoefficient] = hCpuSrv;
+	mhResourcesGpuDescriptors[Resources::Descriptors::ES_AmbientCoefficient] = hGpuSrv;
+	mhResourcesCpuDescriptors[Resources::Descriptors::ER_AmbientCoefficient] = hCpuRtv;
+	  
+	mhResourcesCpuDescriptors[Resources::Descriptors::ES_Temporary] = hCpuSrv.Offset(1, descSize);
+	mhResourcesGpuDescriptors[Resources::Descriptors::ES_Temporary] = hGpuSrv.Offset(1, descSize);
+	mhResourcesCpuDescriptors[Resources::Descriptors::ER_Temporary] = hCpuRtv.Offset(1, rtvDescSize);
+	  
+	mhResourcesCpuDescriptors[Resources::Descriptors::ES_RandomVector] = hCpuSrv.Offset(1, descSize);
+	mhResourcesGpuDescriptors[Resources::Descriptors::ES_RandomVector] = hGpuSrv.Offset(1, descSize);
 
 	BuildDescriptors();
+
+	hCpuSrv.Offset(1, descSize);
+	hGpuSrv.Offset(1, descSize);
+	hCpuRtv.Offset(1, rtvDescSize);
 }
 
-bool Ssao::OnResize(UINT width, UINT height) {
+bool SsaoClass::OnResize(UINT width, UINT height) {
 	width /= mDivider;
 	height /= mDivider;
 	if ((mWidth != width) || (mHeight != height)) {
@@ -70,33 +161,40 @@ bool Ssao::OnResize(UINT width, UINT height) {
 	return true;
 }
 
-void Ssao::BuildDescriptors() {
+void SsaoClass::BuildDescriptors() {
 	D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc = {};
 	srvDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
 	srvDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
-	srvDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
 	srvDesc.Texture2D.MostDetailedMip = 0;
 	srvDesc.Texture2D.MipLevels = 1;
-	md3dDevice->CreateShaderResourceView(mRandomVectorMap.Get(), &srvDesc, mhRandomVectorMapCpuSrv);
-
-	srvDesc.Format = AmbientMapFormat;
-	md3dDevice->CreateShaderResourceView(mAmbientMap0.Get(), &srvDesc, mhAmbientMap0CpuSrv);
-	md3dDevice->CreateShaderResourceView(mAmbientMap1.Get(), &srvDesc, mhAmbientMap1CpuSrv);
 
 	D3D12_RENDER_TARGET_VIEW_DESC rtvDesc = {};
 	rtvDesc.ViewDimension = D3D12_RTV_DIMENSION_TEXTURE2D;
-	rtvDesc.Format = AmbientMapFormat;
 	rtvDesc.Texture2D.MipSlice = 0;
 	rtvDesc.Texture2D.PlaneSlice = 0;
-	md3dDevice->CreateRenderTargetView(mAmbientMap0.Get(), &rtvDesc, mhAmbientMap0CpuRtv);
-	md3dDevice->CreateRenderTargetView(mAmbientMap1.Get(), &rtvDesc, mhAmbientMap1CpuRtv);
+
+	{
+		srvDesc.Format = Ssao::RandomVectorFormat;
+		md3dDevice->CreateShaderResourceView(
+			mResources[Resources::ERandomVector].Get(), &srvDesc,
+			mhResourcesCpuDescriptors[Resources::Descriptors::ES_RandomVector]
+		);
+	}
+	{
+		srvDesc.Format = Ssao::AmbientCoefficientFormat;
+		rtvDesc.Format = Ssao::AmbientCoefficientFormat;
+
+		auto pRawResource = mResources[Resources::EAmbientCoefficient].Get();
+		md3dDevice->CreateShaderResourceView(pRawResource, &srvDesc, mhResourcesCpuDescriptors[Resources::Descriptors::ES_AmbientCoefficient]);
+		md3dDevice->CreateRenderTargetView(pRawResource, &rtvDesc, mhResourcesCpuDescriptors[Resources::Descriptors::ER_AmbientCoefficient]);
+
+		auto pSmoothedResource = mResources[Resources::ETemporary].Get();
+		md3dDevice->CreateShaderResourceView(pSmoothedResource, &srvDesc, mhResourcesCpuDescriptors[Resources::Descriptors::ES_Temporary]);
+		md3dDevice->CreateRenderTargetView(pSmoothedResource, &rtvDesc, mhResourcesCpuDescriptors[Resources::Descriptors::ER_Temporary]);
+	}
 }
 
-bool Ssao::BuildResource() {
-	// Free the old resources if they exist.
-	mAmbientMap0 = nullptr;
-	mAmbientMap1 = nullptr;
-
+bool SsaoClass::BuildResource() {
 	D3D12_RESOURCE_DESC texDesc;
 	ZeroMemory(&texDesc, sizeof(D3D12_RESOURCE_DESC));
 	texDesc.Dimension = D3D12_RESOURCE_DIMENSION_TEXTURE2D;
@@ -106,23 +204,13 @@ bool Ssao::BuildResource() {
 	texDesc.Height = mHeight;
 	texDesc.DepthOrArraySize = 1;
 	texDesc.MipLevels = 1;
-	texDesc.Format = AmbientMapFormat;
 	texDesc.SampleDesc.Count = 1;
 	texDesc.SampleDesc.Quality = 0;
 	texDesc.Layout = D3D12_TEXTURE_LAYOUT_UNKNOWN;
 	texDesc.Flags = D3D12_RESOURCE_FLAG_ALLOW_RENDER_TARGET;
-
-	CD3DX12_CLEAR_VALUE optClear(AmbientMapFormat, AmbientMapClearValues);
-
-	CheckHResult(md3dDevice->CreateCommittedResource(
-		&CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_DEFAULT),
-		D3D12_HEAP_FLAG_NONE,
-		&texDesc,
-		D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE,
-		&optClear,
-		IID_PPV_ARGS(&mAmbientMap0)
-	));
-	mAmbientMap0->SetName(L"AmbientMap0");
+	
+	texDesc.Format = Ssao::AmbientCoefficientFormat;
+	CD3DX12_CLEAR_VALUE optClear(Ssao::AmbientCoefficientFormat, AmbientMapClearValues);
 
 	CheckHResult(md3dDevice->CreateCommittedResource(
 		&CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_DEFAULT),
@@ -130,14 +218,24 @@ bool Ssao::BuildResource() {
 		&texDesc,
 		D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE,
 		&optClear,
-		IID_PPV_ARGS(&mAmbientMap1)
+		IID_PPV_ARGS(&mResources[Resources::EAmbientCoefficient])
 	));
-	mAmbientMap1->SetName(L"AmbientMap1");
+	mResources[Resources::EAmbientCoefficient]->SetName(L"AmbientCoefficientMap");
+
+	CheckHResult(md3dDevice->CreateCommittedResource(
+		&CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_DEFAULT),
+		D3D12_HEAP_FLAG_NONE,
+		&texDesc,
+		D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE,
+		&optClear,
+		IID_PPV_ARGS(&mResources[Resources::ETemporary])
+	));
+	mResources[Resources::ETemporary]->SetName(L"TemporaryAmbientCoefficientMap");
 
 	return true;
 }
 
-void Ssao::BuildOffsetVectors() {
+void SsaoClass::BuildOffsetVectors() {
 	// Start with 14 uniformly distributed vectors.  We choose the 8 corners of the cube
 	// and the 6 center points along each cube face.  We always alternate the points on 
 	// opposites sides of the cubes.  This way we still get the vectors spread out even
@@ -176,7 +274,7 @@ void Ssao::BuildOffsetVectors() {
 	}
 }
 
-bool Ssao::BuildRandomVectorTexture(ID3D12GraphicsCommandList* cmdList) {
+bool SsaoClass::BuildRandomVectorTexture(ID3D12GraphicsCommandList* cmdList) {
 	D3D12_RESOURCE_DESC texDesc;
 	ZeroMemory(&texDesc, sizeof(D3D12_RESOURCE_DESC));
 	texDesc.Dimension = D3D12_RESOURCE_DIMENSION_TEXTURE2D;
@@ -197,8 +295,10 @@ bool Ssao::BuildRandomVectorTexture(ID3D12GraphicsCommandList* cmdList) {
 		&texDesc,
 		D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE,
 		nullptr,
-		IID_PPV_ARGS(&mRandomVectorMap)
+		IID_PPV_ARGS(&mResources[Resources::ERandomVector])
 	));
+	auto pResource = mResources[Resources::ERandomVector].Get();
+	CheckHResult(pResource->SetName(L"AORandomVectorMap"));
 
 	//
 	// In order to copy CPU memory data into our default buffer,
@@ -206,7 +306,7 @@ bool Ssao::BuildRandomVectorTexture(ID3D12GraphicsCommandList* cmdList) {
 	//
 
 	const UINT num2DSubresources = texDesc.DepthOrArraySize * texDesc.MipLevels;
-	const UINT64 uploadBufferSize = GetRequiredIntermediateSize(mRandomVectorMap.Get(), 0, num2DSubresources);
+	const UINT64 uploadBufferSize = GetRequiredIntermediateSize(pResource, 0, num2DSubresources);
 
 	CheckHResult(md3dDevice->CreateCommittedResource(
 		&CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_UPLOAD),
@@ -241,14 +341,14 @@ bool Ssao::BuildRandomVectorTexture(ID3D12GraphicsCommandList* cmdList) {
 	cmdList->ResourceBarrier(
 		1,
 		&CD3DX12_RESOURCE_BARRIER::Transition(
-			mRandomVectorMap.Get(),
+			pResource,
 			D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE,
 			D3D12_RESOURCE_STATE_COPY_DEST
 		)
 	);
 	UpdateSubresources(
 		cmdList,
-		mRandomVectorMap.Get(),
+		pResource,
 		mRandomVectorMapUploadBuffer.Get(),
 		0,
 		0,
@@ -258,7 +358,7 @@ bool Ssao::BuildRandomVectorTexture(ID3D12GraphicsCommandList* cmdList) {
 	cmdList->ResourceBarrier(
 		1,
 		&CD3DX12_RESOURCE_BARRIER::Transition(
-			mRandomVectorMap.Get(),
+			pResource,
 			D3D12_RESOURCE_STATE_COPY_DEST,
 			D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE
 		)

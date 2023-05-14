@@ -21,6 +21,7 @@ public:
 	Microsoft::WRL::ComPtr<ID3D12CommandAllocator> CmdListAlloc;
 
 	UploadBuffer<PassConstants> PassCB;
+	UploadBuffer<DebugConstants> DebugCB;
 	UploadBuffer<ObjectData> ObjectSB;
 	UploadBuffer<MaterialData> MaterialSB;
 	UploadBuffer<BlurConstants> BlurCB;
@@ -28,6 +29,8 @@ public:
 	UploadBuffer<RtaoConstants> RtaoCB;
 	UploadBuffer<CrossBilateralFilterConstants> CrossBilateralFilterCB;
 	UploadBuffer<CalcLocalMeanVarianceConstants> CalcLocalMeanVarCB;
+	UploadBuffer<TemporalSupersamplingBlendWithCurrentFrameConstants> TsppBlendCB;
+	UploadBuffer<AtrousWaveletTransformFilterConstantBuffer> AtrousFilterCB;
 
 	UINT64 Fence;
 

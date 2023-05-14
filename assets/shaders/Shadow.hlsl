@@ -1,7 +1,23 @@
 #ifndef __SHADOW_HLSL__
 #define __SHADOW_HLSL__
 
-#include "Common.hlsli"
+#ifndef HLSL
+#define HLSL
+#endif
+
+#include "./../../include/HlslCompaction.h"
+#include "LightingUtil.hlsli"
+#include "Samplers.hlsli"
+
+ConstantBuffer<PassConstants> cbPass : register(b0);
+
+cbuffer cbRootConstants : register(b1) {
+	uint gInstanceID;
+	bool gIsRaytracing;
+}
+
+StructuredBuffer<ObjectData> gObjects		: register(t0, space1);
+StructuredBuffer<MaterialData> gMaterials	: register(t0, space2);
 
 struct VertexIn {
 	float3 PosL		: POSITION;

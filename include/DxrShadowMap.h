@@ -1,92 +1,120 @@
 #pragma once
 
 #include <d3dx12.h>
+#include <array>
+#include <unordered_map>
 
-class DxrShadowMap {
-public:
-	DxrShadowMap();
-	virtual ~DxrShadowMap();
+#include "Samplers.h"
 
-public:
-	bool Initialize(ID3D12Device* device, ID3D12GraphicsCommandList* cmdList, UINT width, UINT height);
+class ShaderManager;
 
-	__forceinline constexpr UINT Width() const;
-	__forceinline constexpr UINT Height() const;
+namespace DxrShadow {
+	namespace RootSignatureLayout {
+		enum {
+			ECB_Pass = 0,
+			ESI_AccelerationStructure,
+			ESB_Object,
+			ESB_Material,
+			ESB_Vertices,
+			EAB_Indices,
+			ESI_Depth,
+			EUO_Shadow,
+			Count
+		};
+	}
 
-	__forceinline ID3D12Resource* ShadowMap0Resource();
-	__forceinline ID3D12Resource* ShadowMap1Resource();
+	namespace Resources {
+		enum ResourceType {
+			EShadow = 0,
+			ETemporary,
+			Count
+		};
 
-	__forceinline constexpr CD3DX12_GPU_DESCRIPTOR_HANDLE ShadowMap0Srv() const;
-	__forceinline constexpr CD3DX12_GPU_DESCRIPTOR_HANDLE ShadowMap0Uav() const;
+		namespace Descriptors {
+			enum {
+				ES_Shadow = 0,
+				EU_Shadow,
+				ES_Temporary,
+				EU_Temporary,
+				Count
+			};
+		}
+	}
 
-	__forceinline constexpr CD3DX12_GPU_DESCRIPTOR_HANDLE ShadowMap1Srv() const;
-	__forceinline constexpr CD3DX12_GPU_DESCRIPTOR_HANDLE ShadowMap1Uav() const;
+	using ResourcesType = std::array<Microsoft::WRL::ComPtr<ID3D12Resource>, Resources::Count>;
+	using ResourcesCpuDescriptors = std::array<CD3DX12_CPU_DESCRIPTOR_HANDLE, Resources::Descriptors::Count>;
+	using ResourcesGpuDescriptors = std::array<CD3DX12_GPU_DESCRIPTOR_HANDLE, Resources::Descriptors::Count>;
 
-	void BuildDescriptors(
-		CD3DX12_CPU_DESCRIPTOR_HANDLE hCpuSrv,
-		CD3DX12_GPU_DESCRIPTOR_HANDLE hGpuSrv,
-		CD3DX12_CPU_DESCRIPTOR_HANDLE hCpuUav, 
-		CD3DX12_GPU_DESCRIPTOR_HANDLE hGpuUav,
-		UINT descSize
-	);
+	const DXGI_FORMAT ShadowFormat = DXGI_FORMAT_R16_UNORM;
 
-	bool OnResize(ID3D12GraphicsCommandList* cmdList, UINT width, UINT height);
+	class DxrShadowClass {
+	public:
+		DxrShadowClass() = default;
+		virtual ~DxrShadowClass() = default;
 
-private:
-	void BuildDescriptors();
-	bool BuildResource(ID3D12GraphicsCommandList* cmdList);
-	
-public:
-	const static DXGI_FORMAT ShadowMapFormat = DXGI_FORMAT_R16_UNORM;
+	public:
+		bool Initialize(ID3D12Device5*const device, ID3D12GraphicsCommandList*const cmdList, ShaderManager*const manager, UINT width, UINT height);
+		bool CompileShaders(const std::wstring& filePath);
+		bool BuildRootSignatures(const StaticSamplers& samplers, UINT geometryBufferCount);
+		bool BuildDXRPSO();
+		bool BuildShaderTables();
+		void Run(
+			ID3D12GraphicsCommandList4*const cmdList,
+			D3D12_GPU_VIRTUAL_ADDRESS accelStruct,
+			D3D12_GPU_VIRTUAL_ADDRESS cbAddress,
+			D3D12_GPU_VIRTUAL_ADDRESS objSBAddress,
+			D3D12_GPU_VIRTUAL_ADDRESS matSBAddress,
+			D3D12_GPU_DESCRIPTOR_HANDLE i_vertices,
+			D3D12_GPU_DESCRIPTOR_HANDLE i_indices,
+			D3D12_GPU_DESCRIPTOR_HANDLE i_depth,
+			D3D12_GPU_DESCRIPTOR_HANDLE o_shadow,
+			UINT width, UINT height);
 
-private:
-	ID3D12Device* md3dDevice;
+		__forceinline constexpr UINT Width() const;
+		__forceinline constexpr UINT Height() const;
 
-	UINT mWidth;
-	UINT mHeight;
+		__forceinline const DxrShadow::ResourcesType& Resources() const;
+		__forceinline const DxrShadow::ResourcesGpuDescriptors& ResourcesGpuDescriptors() const;
 
-	Microsoft::WRL::ComPtr<ID3D12Resource> mShadowMap0 = nullptr;
-	Microsoft::WRL::ComPtr<ID3D12Resource> mShadowMap1 = nullptr;
-	
-	CD3DX12_CPU_DESCRIPTOR_HANDLE mhCpuSrv0;
-	CD3DX12_GPU_DESCRIPTOR_HANDLE mhGpuSrv0;
-	CD3DX12_CPU_DESCRIPTOR_HANDLE mhCpuUav0;
-	CD3DX12_GPU_DESCRIPTOR_HANDLE mhGpuUav0;
+		void BuildDescriptors(CD3DX12_CPU_DESCRIPTOR_HANDLE& hCpu, CD3DX12_GPU_DESCRIPTOR_HANDLE& hGpu, UINT descSize);
 
-	CD3DX12_CPU_DESCRIPTOR_HANDLE mhCpuSrv1;
-	CD3DX12_GPU_DESCRIPTOR_HANDLE mhGpuSrv1;
-	CD3DX12_CPU_DESCRIPTOR_HANDLE mhCpuUav1;
-	CD3DX12_GPU_DESCRIPTOR_HANDLE mhGpuUav1;
-};
+		bool OnResize(ID3D12GraphicsCommandList* cmdList, UINT width, UINT height);
 
-constexpr UINT DxrShadowMap::Width() const {
+	private:
+		void BuildDescriptors();
+		bool BuildResource(ID3D12GraphicsCommandList* cmdList);
+
+	private:
+		ID3D12Device5* md3dDevice;
+		ShaderManager* mShaderManager;
+
+		Microsoft::WRL::ComPtr<ID3D12RootSignature> mRootSignature;
+		Microsoft::WRL::ComPtr<ID3D12StateObject> mPSO;
+		Microsoft::WRL::ComPtr<ID3D12StateObjectProperties> mPSOProp;
+
+		std::unordered_map<std::string, Microsoft::WRL::ComPtr<ID3D12Resource>> mShaderTables;
+
+		UINT mWidth;
+		UINT mHeight;
+
+		DxrShadow::ResourcesType mResources;
+		DxrShadow::ResourcesCpuDescriptors mhResourcesCpuDescriptors;
+		DxrShadow::ResourcesGpuDescriptors mhResourcesGpuDescriptors;
+	};
+}
+
+constexpr UINT DxrShadow::DxrShadowClass::Width() const {
 	return mWidth;
 }
 
-constexpr UINT DxrShadowMap::Height() const {
+constexpr UINT DxrShadow::DxrShadowClass::Height() const {
 	return mHeight;
 }
 
-ID3D12Resource* DxrShadowMap::ShadowMap0Resource() {
-	return mShadowMap0.Get();
+const DxrShadow::ResourcesType& DxrShadow::DxrShadowClass::Resources() const {
+	return mResources;
 }
 
-ID3D12Resource* DxrShadowMap::ShadowMap1Resource() {
-	return mShadowMap1.Get();
-}
-
-constexpr CD3DX12_GPU_DESCRIPTOR_HANDLE DxrShadowMap::ShadowMap0Srv() const {
-	return mhGpuSrv0;
-}
-
-constexpr CD3DX12_GPU_DESCRIPTOR_HANDLE DxrShadowMap::ShadowMap0Uav() const {
-	return mhGpuUav0;
-}
-
-constexpr CD3DX12_GPU_DESCRIPTOR_HANDLE DxrShadowMap::ShadowMap1Srv() const {
-	return mhGpuSrv1;
-}
-
-constexpr CD3DX12_GPU_DESCRIPTOR_HANDLE DxrShadowMap::ShadowMap1Uav() const {
-	return mhGpuUav1;
+const DxrShadow::ResourcesGpuDescriptors& DxrShadow::DxrShadowClass::ResourcesGpuDescriptors() const {
+	return mhResourcesGpuDescriptors;
 }

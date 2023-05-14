@@ -101,6 +101,33 @@ bool D3D12Util::CreateRootSignature(ID3D12Device* pDevice, const D3D12_ROOT_SIGN
 	return true;
 }
 
+bool D3D12Util::CreateVersionedRootSignature(ID3D12Device* pDevice, const D3D12_VERSIONED_ROOT_SIGNATURE_DESC& inRootSignatureDesc, ID3D12RootSignature** ppRootSignature) {
+	ComPtr<ID3DBlob> serializedRootSig = nullptr;
+	ComPtr<ID3DBlob> errorBlob = nullptr;
+	HRESULT hr = D3DX12SerializeVersionedRootSignature(
+		&inRootSignatureDesc,
+		D3D_ROOT_SIGNATURE_VERSION_1_1,
+		serializedRootSig.GetAddressOf(),
+		errorBlob.GetAddressOf()
+	);
+
+	std::wstringstream wsstream;
+	if (errorBlob != nullptr)
+		wsstream << reinterpret_cast<char*>(errorBlob->GetBufferPointer());
+
+	if (FAILED(hr))
+		ReturnFalse(wsstream.str());
+
+	CheckHResult(pDevice->CreateRootSignature(
+		0,
+		serializedRootSig->GetBufferPointer(),
+		serializedRootSig->GetBufferSize(),
+		IID_PPV_ARGS(ppRootSignature)
+	));
+
+	return true;
+}
+
 bool D3D12Util::CreateBuffer(ID3D12Device* pDevice, D3D12BufferCreateInfo& inInfo, ID3D12Resource** ppResource, ID3D12InfoQueue* pInfoQueue) {
 	D3D12_HEAP_PROPERTIES heapDesc = {};
 	heapDesc.Type = inInfo.HeapType;

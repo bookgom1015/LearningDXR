@@ -8,6 +8,7 @@
 #include "./../../include/HlslCompaction.h"
 #include "ShadingHelpers.hlsli"
 #include "Samplers.hlsli"
+#include "CoordinatesFittedToScreen.hlsli"
 
 ConstantBuffer<SsaoConstants> cbSsao : register(b0);
 
@@ -15,15 +16,6 @@ ConstantBuffer<SsaoConstants> cbSsao : register(b0);
 Texture2D<float3> gNormalMap		: register(t0);
 Texture2D<float> gDepthMap			: register(t1);
 Texture2D<float3> gRandomVectorMap	: register(t2);
-
-static const float2 gTexCoords[6] = {
-	float2(0.0f, 1.0f),
-	float2(0.0f, 0.0f),
-	float2(1.0f, 0.0f),
-	float2(0.0f, 1.0f),
-	float2(1.0f, 0.0f),
-	float2(1.0f, 1.0f)
-};
 
 struct VertexOut {
 	float4 PosH : SV_POSITION;

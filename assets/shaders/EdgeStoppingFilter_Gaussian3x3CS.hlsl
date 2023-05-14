@@ -1,0 +1,14 @@
+#ifndef __EDGESTOPPINGFILTER_GAUSSIAN3X3_CS_HLSL
+#define __EDGESTOPPINGFILTER_GAUSSIAN3X3_CS_HLSL
+
+#ifndef HLSL
+#define HLSL
+#endif
+
+#ifndef GAUSSIAN_KERNEL_3X3
+#define GAUSSIAN_KERNEL_3X3
+#endif 
+
+#include "AtrousWaveletTransformFilterCS.hlsli"
+
+#endif // __EDGESTOPPINGFILTER_GAUSSIAN3X3_CS_HLSL

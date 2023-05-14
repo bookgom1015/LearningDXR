@@ -1,133 +1,145 @@
 #pragma once
 
 #include <d3dx12.h>
+#include <array>
 
 #include "MathHelper.h"
+#include "Samplers.h"
 
-class Ssao {
-public:
-	Ssao();
-	virtual ~Ssao();
+class ShaderManager;
 
-public:
-	bool Initialize(ID3D12Device* device, ID3D12GraphicsCommandList* cmdList, UINT width, UINT height, UINT divider);
+namespace Ssao {
+	namespace RootSignatureLayout {
+		enum {
+			ECB_SsaoPass = 0,
+			ESI_NormalAndDepth,
+			ESI_RandomVector,
+			Count
+		};
+	}
 
-	__forceinline constexpr UINT Width() const;
-	__forceinline constexpr UINT Height() const;
+	namespace Resources {
+		enum ResourceType {
+			EAmbientCoefficient = 0,
+			ETemporary,
+			ERandomVector,
+			Count
+		};
 
-	__forceinline constexpr D3D12_VIEWPORT Viewport() const;
-	__forceinline constexpr D3D12_RECT ScissorRect() const;
+		namespace Descriptors {
+			enum {
+				ES_AmbientCoefficient = 0,
+				ER_AmbientCoefficient,
+				ES_Temporary,
+				ER_Temporary,
+				ES_RandomVector,
+				Count
+			};
+		}
+	}
 
-	__forceinline ID3D12Resource* AmbientMap0Resource();
-	__forceinline ID3D12Resource* AmbientMap1Resource();
-	__forceinline ID3D12Resource* RandomVectorMapResource();
-	__forceinline constexpr CD3DX12_GPU_DESCRIPTOR_HANDLE AmbientMap0Srv() const;
-	__forceinline constexpr CD3DX12_CPU_DESCRIPTOR_HANDLE AmbientMap0Rtv() const;
+	using ResourcesType = std::array<Microsoft::WRL::ComPtr<ID3D12Resource>, Resources::Count>;
+	using ResourcesCpuDescriptors = std::array<CD3DX12_CPU_DESCRIPTOR_HANDLE, Resources::Descriptors::Count>;
+	using ResourcesGpuDescriptors = std::array<CD3DX12_GPU_DESCRIPTOR_HANDLE, Resources::Descriptors::Count>;
 
-	__forceinline constexpr CD3DX12_GPU_DESCRIPTOR_HANDLE AmbientMap1Srv() const;
-	__forceinline constexpr CD3DX12_CPU_DESCRIPTOR_HANDLE AmbientMap1Rtv() const;
+	const UINT NumRenderTargets = 2;
 
-	__forceinline constexpr CD3DX12_GPU_DESCRIPTOR_HANDLE RandomVectorMapSrv() const;
+	const float AmbientMapClearValues[4] = { 1.0f, 1.0f, 1.0f, 1.0f };
 
-	void GetOffsetVectors(DirectX::XMFLOAT4 offsets[14]);
+	const DXGI_FORMAT AmbientCoefficientFormat	= DXGI_FORMAT_R16_UNORM;
+	const DXGI_FORMAT RandomVectorFormat		= DXGI_FORMAT_R8G8B8A8_UNORM;
 
-	void BuildDescriptors(
-		CD3DX12_CPU_DESCRIPTOR_HANDLE hCpuSrv,
-		CD3DX12_GPU_DESCRIPTOR_HANDLE hGpuSrv,
-		CD3DX12_CPU_DESCRIPTOR_HANDLE hCpuRtv,
-		UINT descSize, UINT rtvDescSize);
+	class SsaoClass {
+	public:
+		SsaoClass() = default;
+		virtual ~SsaoClass() = default;
 
-	bool OnResize(UINT width, UINT height);
+	public:
+		bool Initialize(ID3D12Device*const device, ID3D12GraphicsCommandList*const cmdList, ShaderManager*const manager, UINT width, UINT height, UINT divider);
+		bool CompileShaders(const std::wstring& filePath);
+		bool BuildRootSignature(const StaticSamplers& samplers);
+		bool BuildPso();
+		void Run(
+			ID3D12GraphicsCommandList*const cmdList,
+			D3D12_GPU_VIRTUAL_ADDRESS cbAddress,
+			D3D12_GPU_DESCRIPTOR_HANDLE normalAndDepthSrv);
 
-private:
-	void BuildDescriptors();
-	bool BuildResource();
+		__forceinline constexpr UINT Width() const;
+		__forceinline constexpr UINT Height() const;
 
-	void BuildOffsetVectors();
-	bool BuildRandomVectorTexture(ID3D12GraphicsCommandList* cmdList);
+		__forceinline constexpr D3D12_VIEWPORT Viewport() const;
+		__forceinline constexpr D3D12_RECT ScissorRect() const;
 
-public:
-	static const UINT NumRenderTargets = 2;
+		__forceinline const ResourcesType& Resources() const;
+		__forceinline const ResourcesCpuDescriptors& ResourcesCpuDescriptors() const;
+		__forceinline const ResourcesGpuDescriptors& ResourcesGpuDescriptors() const;
 
-	static const DXGI_FORMAT AmbientMapFormat = DXGI_FORMAT_R16_UNORM;
+		void GetOffsetVectors(DirectX::XMFLOAT4 offsets[14]);
 
-	static const float AmbientMapClearValues[4];
+		void BuildDescriptors(
+			CD3DX12_CPU_DESCRIPTOR_HANDLE& hCpuSrv,
+			CD3DX12_GPU_DESCRIPTOR_HANDLE& hGpuSrv,
+			CD3DX12_CPU_DESCRIPTOR_HANDLE& hCpuRtv,
+			UINT descSize, UINT rtvDescSize);
 
-private:
-	ID3D12Device* md3dDevice;
+		bool OnResize(UINT width, UINT height);
 
-	UINT mWidth;
-	UINT mHeight;
+	private:
+		void BuildDescriptors();
+		bool BuildResource();
 
-	UINT mDivider;
+		void BuildOffsetVectors();
+		bool BuildRandomVectorTexture(ID3D12GraphicsCommandList* cmdList);
 
-	Microsoft::WRL::ComPtr<ID3D12Resource> mRandomVectorMap;
-	Microsoft::WRL::ComPtr<ID3D12Resource> mRandomVectorMapUploadBuffer;
-	Microsoft::WRL::ComPtr<ID3D12Resource> mAmbientMap0;
-	Microsoft::WRL::ComPtr<ID3D12Resource> mAmbientMap1;
+	private:
+		ID3D12Device* md3dDevice;
+		ShaderManager* mShaderManager;
 
-	CD3DX12_CPU_DESCRIPTOR_HANDLE mhRandomVectorMapCpuSrv;
-	CD3DX12_GPU_DESCRIPTOR_HANDLE mhRandomVectorMapGpuSrv;
+		Microsoft::WRL::ComPtr<ID3D12RootSignature> mRootSignature;
+		Microsoft::WRL::ComPtr<ID3D12PipelineState> mPSO;
 
-	// Need two for ping-ponging during blur.
-	CD3DX12_CPU_DESCRIPTOR_HANDLE mhAmbientMap0CpuSrv;
-	CD3DX12_GPU_DESCRIPTOR_HANDLE mhAmbientMap0GpuSrv;
-	CD3DX12_CPU_DESCRIPTOR_HANDLE mhAmbientMap0CpuRtv;
+		UINT mWidth;
+		UINT mHeight;
 
-	CD3DX12_CPU_DESCRIPTOR_HANDLE mhAmbientMap1CpuSrv;
-	CD3DX12_GPU_DESCRIPTOR_HANDLE mhAmbientMap1GpuSrv;
-	CD3DX12_CPU_DESCRIPTOR_HANDLE mhAmbientMap1CpuRtv;
+		UINT mDivider;
 
-	DirectX::XMFLOAT4 mOffsets[14];
+		D3D12_VIEWPORT mViewport;
+		D3D12_RECT mScissorRect;
+		
+		Ssao::ResourcesType mResources;
+		Ssao::ResourcesCpuDescriptors mhResourcesCpuDescriptors;
+		Ssao::ResourcesGpuDescriptors mhResourcesGpuDescriptors;
 
-	D3D12_VIEWPORT mViewport;
-	D3D12_RECT mScissorRect;
-};
+		Microsoft::WRL::ComPtr<ID3D12Resource> mRandomVectorMapUploadBuffer;
 
-constexpr UINT Ssao::Width() const {
+		DirectX::XMFLOAT4 mOffsets[14];
+	};
+}
+
+constexpr UINT Ssao::SsaoClass::Width() const {
 	return mWidth;
 }
 
-constexpr UINT Ssao::Height() const {
+constexpr UINT Ssao::SsaoClass::Height() const {
 	return mHeight;
 }
 
-constexpr D3D12_VIEWPORT Ssao::Viewport() const {
+constexpr D3D12_VIEWPORT Ssao::SsaoClass::Viewport() const {
 	return mViewport;
 }
 
-constexpr D3D12_RECT Ssao::ScissorRect() const {
+constexpr D3D12_RECT Ssao::SsaoClass::ScissorRect() const {
 	return mScissorRect;
 }
 
-ID3D12Resource* Ssao::AmbientMap0Resource() {
-	return mAmbientMap0.Get();
+const Ssao::ResourcesType& Ssao::SsaoClass::Resources() const {
+	return mResources;
 }
 
-ID3D12Resource* Ssao::AmbientMap1Resource() {
-	return mAmbientMap1.Get();
+const Ssao::ResourcesCpuDescriptors& Ssao::SsaoClass::ResourcesCpuDescriptors() const {
+	return mhResourcesCpuDescriptors;
 }
 
-ID3D12Resource* Ssao::RandomVectorMapResource() {
-	return mRandomVectorMap.Get();
-}
-
-constexpr CD3DX12_GPU_DESCRIPTOR_HANDLE Ssao::AmbientMap0Srv() const {
-	return mhAmbientMap0GpuSrv;
-}
-
-constexpr CD3DX12_CPU_DESCRIPTOR_HANDLE Ssao::AmbientMap0Rtv() const {
-	return mhAmbientMap0CpuRtv;
-}
-
-constexpr CD3DX12_GPU_DESCRIPTOR_HANDLE Ssao::AmbientMap1Srv() const {
-	return mhAmbientMap1GpuSrv;
-}
-
-constexpr CD3DX12_CPU_DESCRIPTOR_HANDLE Ssao::AmbientMap1Rtv() const {
-	return mhAmbientMap1CpuRtv;
-}
-
-constexpr CD3DX12_GPU_DESCRIPTOR_HANDLE Ssao::RandomVectorMapSrv() const {
-	return mhRandomVectorMapGpuSrv;
+const Ssao::ResourcesGpuDescriptors& Ssao::SsaoClass::ResourcesGpuDescriptors() const {
+	return mhResourcesGpuDescriptors;
 }

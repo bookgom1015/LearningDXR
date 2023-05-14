@@ -1,197 +1,155 @@
 #pragma once
 
 #include <d3dx12.h>
+#include <array>
 
-class GBuffer {
-public:
-	GBuffer();
-	virtual ~GBuffer();
+#include "Samplers.h"
 
-public:
-	bool Initialize(ID3D12Device* device, UINT width, UINT height, DXGI_FORMAT backBufferFormat, DXGI_FORMAT depthMapFormat);
+class ShaderManager;
 
-	__forceinline constexpr UINT Width() const;
-	__forceinline constexpr UINT Height() const;
+struct RenderItem;
 
-	__forceinline ID3D12Resource* ColorMapResource();
-	__forceinline ID3D12Resource* AlbedoMapResource();
-	__forceinline ID3D12Resource* NormalDepthMapResource();
-	__forceinline ID3D12Resource* SpecularMapResource();
-	__forceinline ID3D12Resource* VelocityMapResource();
-	__forceinline ID3D12Resource* ReprojectedNormalDepthMapResource();
+namespace GBuffer {
+	namespace RootSignatureLayout {
+		enum {
+			ECB_Pass = 0,
+			EC_Consts,
+			ESB_Object,
+			ESB_Material,
+			Count
+		};
+	}
 
-	__forceinline constexpr CD3DX12_GPU_DESCRIPTOR_HANDLE ColorMapSrv() const;
-	__forceinline constexpr CD3DX12_CPU_DESCRIPTOR_HANDLE ColorMapRtv() const;
+	namespace RootConstantsLayout {
+		enum {
+			EInstanceID = 0,
+			EIsRaytracing,
+			Count
+		};
+	}
 
-	__forceinline constexpr CD3DX12_GPU_DESCRIPTOR_HANDLE DepthMapSrv() const;
+	namespace Resources {
+		enum ResourceType {
+			EColor = 0,
+			EAlbedo,
+			ENormalDepth,
+			ESpecular,
+			EVelocity,
+			EReprojectedNormalDepth,
+			Count
+		};
 
-	__forceinline constexpr CD3DX12_GPU_DESCRIPTOR_HANDLE AlbedoMapSrv() const;
-	__forceinline constexpr CD3DX12_CPU_DESCRIPTOR_HANDLE AlbedoMapRtv() const;
+		namespace Descriptors {
+			enum {
+				ES_Color = 0,
+				ER_Color,
+				ES_Albedo,
+				ER_Albedo,
+				ES_NormalDepth,
+				ER_NormalDepth,
+				ES_Depth,
+				ES_Specular,
+				ER_Specular,
+				ES_Velocity,
+				ER_Velocity,
+				ES_ReprojectedNormalDepth,
+				ER_ReprojectedNormalDepth,
+				Count
+			};
+		}
+	}
 
-	__forceinline constexpr CD3DX12_GPU_DESCRIPTOR_HANDLE NormalDepthMapSrv() const;
-	__forceinline constexpr CD3DX12_CPU_DESCRIPTOR_HANDLE NormalDepthMapRtv() const;
+	using ResourcesType = std::array<Microsoft::WRL::ComPtr<ID3D12Resource>, Resources::Count>;
+	using ResourcesCpuDescriptors = std::array<CD3DX12_CPU_DESCRIPTOR_HANDLE, Resources::Descriptors::Count>;
+	using ResourcesGpuDescriptors = std::array<CD3DX12_GPU_DESCRIPTOR_HANDLE, Resources::Descriptors::Count>;
 
-	__forceinline constexpr CD3DX12_GPU_DESCRIPTOR_HANDLE SpecularMapSrv() const;
-	__forceinline constexpr CD3DX12_CPU_DESCRIPTOR_HANDLE SpecularMapRtv() const;
+	const float ColorMapClearValues[4]					= { 0.0f, 0.0f, 0.0f, 0.0f };
+	const float AlbedoMapClearValues[4]					= { 0.0f, 0.0f, 0.0f, 0.0f };
+	const float NormalDepthMapClearValues[4]			= { 0.0f, 0.0f, 0.0f, 1.0f };
+	const float SpecularMapClearValues[4]				= { 0.0f, 0.0f, 0.0f, 1.0f };
+	const float VelocityMapClearValues[2]				= { 1000.0f, 1000.0f };
+	const float ReprojectedNormalDepthMapClearValues[4]	= { 0.0f, 0.0f, 0.0f, 1.0f };
 
-	__forceinline constexpr CD3DX12_GPU_DESCRIPTOR_HANDLE VelocityMapSrv() const;
-	__forceinline constexpr CD3DX12_CPU_DESCRIPTOR_HANDLE VelocityMapRtv() const;
-	
-	__forceinline constexpr CD3DX12_GPU_DESCRIPTOR_HANDLE ReprojectedNormalDepthMapSrv() const;
-	__forceinline constexpr CD3DX12_CPU_DESCRIPTOR_HANDLE ReprojectedNormalDepthMapRtv() const;
+	const DXGI_FORMAT ColorFormat					= DXGI_FORMAT_R8G8B8A8_UNORM;
+	const DXGI_FORMAT AlbedoFormat					= DXGI_FORMAT_R8G8B8A8_UNORM;
+	const DXGI_FORMAT NormalDepthFormat				= DXGI_FORMAT_R8G8B8A8_SNORM;
+	const DXGI_FORMAT DepthFormat					= DXGI_FORMAT_R24_UNORM_X8_TYPELESS;
+	const DXGI_FORMAT SpecularFormat				= DXGI_FORMAT_R8G8B8A8_UNORM;
+	const DXGI_FORMAT VelocityFormat				= DXGI_FORMAT_R16G16_SNORM;
+	const DXGI_FORMAT ReprojectedNormalDepthFormat	= DXGI_FORMAT_R8G8B8A8_SNORM;
 
-	void BuildDescriptors(
-		CD3DX12_CPU_DESCRIPTOR_HANDLE hCpuSrv,
-		CD3DX12_GPU_DESCRIPTOR_HANDLE hGpuSrv,
-		CD3DX12_CPU_DESCRIPTOR_HANDLE hCpuRtv,
-		UINT descSize, UINT rtvDescSize,
-		ID3D12Resource* depth);
+	class GBufferClass {
+	public:
+		GBufferClass() = default;
+		virtual ~GBufferClass() = default;
 
-	bool OnResize(UINT width, UINT height, ID3D12Resource* depth);
+	public:
+		bool Initialize(ID3D12Device*const device, ShaderManager*const manager, UINT width, UINT height);
+		bool CompileShaders(const std::wstring& filePath);
+		bool BuildRootSignature(const StaticSamplers& samplers);
+		bool BuildPso(D3D12_INPUT_LAYOUT_DESC inputLayout, DXGI_FORMAT depthFormat);
+		void Run(
+			ID3D12GraphicsCommandList*const cmdList, 
+			D3D12_CPU_DESCRIPTOR_HANDLE dsv,
+			D3D12_GPU_VIRTUAL_ADDRESS cbAddress,
+			D3D12_GPU_VIRTUAL_ADDRESS objSBAddress,
+			D3D12_GPU_VIRTUAL_ADDRESS matSBAddress,
+			const std::vector<RenderItem*>& ritems);
 
-private:
-	void BuildDescriptors(ID3D12Resource* depth);
-	bool BuildResource();
+		__forceinline constexpr UINT Width() const;
+		__forceinline constexpr UINT Height() const;
 
-public:
-	static const UINT NumRenderTargets = 6;
+		__forceinline const ResourcesType& Resources() const;
+		__forceinline const ResourcesCpuDescriptors& ResourcesCpuDescriptors() const;
+		__forceinline const ResourcesGpuDescriptors& ResourcesGpuDescriptors() const;
 
-	static const DXGI_FORMAT NormalDepthMapFormat = DXGI_FORMAT_R8G8B8A8_SNORM;
-	static const DXGI_FORMAT SpecularMapFormat = DXGI_FORMAT_R8G8B8A8_UNORM;
-	static const DXGI_FORMAT VelocityMapFormat = DXGI_FORMAT_R16G16_SNORM;
-	static const DXGI_FORMAT ReprojectedNormalDepthMapFormat = DXGI_FORMAT_R8G8B8A8_SNORM;
+		void BuildDescriptors(
+			CD3DX12_CPU_DESCRIPTOR_HANDLE& hCpuSrv,
+			CD3DX12_GPU_DESCRIPTOR_HANDLE& hGpuSrv,
+			CD3DX12_CPU_DESCRIPTOR_HANDLE& hCpuRtv,
+			UINT descSize, UINT rtvDescSize,
+			ID3D12Resource*const depth);
 
-	static const float ColorMapClearValues[4];
-	static const float AlbedoMapClearValues[4];
-	static const float NormalDepthMapClearValues[4];
-	static const float SpecularMapClearValues[4];
-	static const float VelocityMapClearValues[2];
-	static const float ReprojectedNormalDepthMapClearValues[4];
+		bool OnResize(UINT width, UINT height, ID3D12Resource*const depth);
 
-private:
-	ID3D12Device* md3dDevice;
+	private:
+		void BuildDescriptors(ID3D12Resource* depth);
+		bool BuildResource();
 
-	UINT mWidth;
-	UINT mHeight;
+		void DrawRenderItems(ID3D12GraphicsCommandList* cmdList, const std::vector<RenderItem*>& ritems);
 
-	DXGI_FORMAT mColorMapFormat;
-	DXGI_FORMAT mDepthMapFormat;
+	private:
+		ID3D12Device* md3dDevice;
+		ShaderManager* mShaderManager;
 
-	Microsoft::WRL::ComPtr<ID3D12Resource> mColorMap;
-	Microsoft::WRL::ComPtr<ID3D12Resource> mAlbedoMap;
-	Microsoft::WRL::ComPtr<ID3D12Resource> mNormalDepthMap;
-	Microsoft::WRL::ComPtr<ID3D12Resource> mSpecularMap;
-	Microsoft::WRL::ComPtr<ID3D12Resource> mVelocityMap;
-	Microsoft::WRL::ComPtr<ID3D12Resource> mReprojectedNormalDepthMap;
+		Microsoft::WRL::ComPtr<ID3D12RootSignature> mRootSignature;
+		Microsoft::WRL::ComPtr<ID3D12PipelineState> mPSO;
 
-	CD3DX12_CPU_DESCRIPTOR_HANDLE mhColorMapCpuSrv;
-	CD3DX12_GPU_DESCRIPTOR_HANDLE mhColorMapGpuSrv;
-	CD3DX12_CPU_DESCRIPTOR_HANDLE mhColorMapCpuRtv;
+		UINT mWidth;
+		UINT mHeight;
 
-	CD3DX12_CPU_DESCRIPTOR_HANDLE mhAlbedoMapCpuSrv;
-	CD3DX12_GPU_DESCRIPTOR_HANDLE mhAlbedoMapGpuSrv;
-	CD3DX12_CPU_DESCRIPTOR_HANDLE mhAlbedoMapCpuRtv;
+		GBuffer::ResourcesType mResources;
+		GBuffer::ResourcesCpuDescriptors mhResourcesCpuDescriptors;
+		GBuffer::ResourcesGpuDescriptors mhResourcesGpuDescriptors;
+	};
+}
 
-	CD3DX12_CPU_DESCRIPTOR_HANDLE mhNormalDepthMapCpuSrv;
-	CD3DX12_GPU_DESCRIPTOR_HANDLE mhNormalDepthMapGpuSrv;
-	CD3DX12_CPU_DESCRIPTOR_HANDLE mhNormalDepthMapCpuRtv;
-
-	CD3DX12_CPU_DESCRIPTOR_HANDLE mhDepthMapCpuSrv;
-	CD3DX12_GPU_DESCRIPTOR_HANDLE mhDepthMapGpuSrv;
-
-	CD3DX12_CPU_DESCRIPTOR_HANDLE mhSpecularMapCpuSrv;
-	CD3DX12_GPU_DESCRIPTOR_HANDLE mhSpecularMapGpuSrv;
-	CD3DX12_CPU_DESCRIPTOR_HANDLE mhSpecularMapCpuRtv;
-
-	CD3DX12_CPU_DESCRIPTOR_HANDLE mhVelocityMapCpuSrv;
-	CD3DX12_GPU_DESCRIPTOR_HANDLE mhVelocityMapGpuSrv;
-	CD3DX12_CPU_DESCRIPTOR_HANDLE mhVelocityMapCpuRtv;
-
-	CD3DX12_CPU_DESCRIPTOR_HANDLE mhReprojectedNormalDepthMapCpuSrv;
-	CD3DX12_GPU_DESCRIPTOR_HANDLE mhReprojectedNormalDepthMapGpuSrv;
-	CD3DX12_CPU_DESCRIPTOR_HANDLE mhReprojectedNormalDepthMapCpuRtv;
-};
-
-constexpr UINT GBuffer::Width() const {
+constexpr UINT GBuffer::GBufferClass::Width() const {
 	return mWidth;
 }
 
-constexpr UINT GBuffer::Height() const {
+constexpr UINT GBuffer::GBufferClass::Height() const {
 	return mHeight;
 }
 
-ID3D12Resource* GBuffer::ColorMapResource() {
-	return mColorMap.Get();
+const GBuffer::ResourcesType& GBuffer::GBufferClass::Resources() const {
+	return mResources;
 }
 
-ID3D12Resource* GBuffer::AlbedoMapResource() {
-	return mAlbedoMap.Get();
+const GBuffer::ResourcesCpuDescriptors& GBuffer::GBufferClass::ResourcesCpuDescriptors() const {
+	return mhResourcesCpuDescriptors;
 }
 
-ID3D12Resource* GBuffer::NormalDepthMapResource() {
-	return mNormalDepthMap.Get();
-}
-
-ID3D12Resource* GBuffer::SpecularMapResource() {
-	return mSpecularMap.Get();
-}
-
-ID3D12Resource* GBuffer::VelocityMapResource() {
-	return mVelocityMap.Get();
-}
-
-ID3D12Resource* GBuffer::ReprojectedNormalDepthMapResource() {
-	return mReprojectedNormalDepthMap.Get();
-}
-
-constexpr CD3DX12_GPU_DESCRIPTOR_HANDLE GBuffer::ColorMapSrv() const {
-	return mhColorMapGpuSrv;
-}
-
-constexpr CD3DX12_CPU_DESCRIPTOR_HANDLE GBuffer::ColorMapRtv() const {
-	return mhColorMapCpuRtv;
-}
-
-constexpr CD3DX12_GPU_DESCRIPTOR_HANDLE GBuffer::DepthMapSrv() const {
-	return mhDepthMapGpuSrv;
-}
-
-constexpr CD3DX12_GPU_DESCRIPTOR_HANDLE GBuffer::AlbedoMapSrv() const {
-	return mhAlbedoMapGpuSrv;
-}
-
-constexpr CD3DX12_CPU_DESCRIPTOR_HANDLE GBuffer::AlbedoMapRtv() const {
-	return mhAlbedoMapCpuRtv;
-}
-
-constexpr CD3DX12_GPU_DESCRIPTOR_HANDLE GBuffer::NormalDepthMapSrv() const {
-	return mhNormalDepthMapGpuSrv;
-}
-
-constexpr CD3DX12_CPU_DESCRIPTOR_HANDLE GBuffer::NormalDepthMapRtv() const {
-	return mhNormalDepthMapCpuRtv;
-}
-
-constexpr CD3DX12_GPU_DESCRIPTOR_HANDLE GBuffer::SpecularMapSrv() const {
-	return mhSpecularMapGpuSrv;
-}
-
-constexpr CD3DX12_CPU_DESCRIPTOR_HANDLE GBuffer::SpecularMapRtv() const {
-	return mhSpecularMapCpuRtv;
-}
-
-constexpr CD3DX12_GPU_DESCRIPTOR_HANDLE GBuffer::VelocityMapSrv() const {
-	return mhVelocityMapGpuSrv;
-}
-
-constexpr CD3DX12_CPU_DESCRIPTOR_HANDLE GBuffer::VelocityMapRtv() const {
-	return mhVelocityMapCpuRtv;
-}
-
-constexpr CD3DX12_GPU_DESCRIPTOR_HANDLE GBuffer::ReprojectedNormalDepthMapSrv() const {
-	return mhReprojectedNormalDepthMapGpuSrv;
-}
-
-constexpr CD3DX12_CPU_DESCRIPTOR_HANDLE GBuffer::ReprojectedNormalDepthMapRtv() const {
-	return mhReprojectedNormalDepthMapCpuRtv;
+const GBuffer::ResourcesGpuDescriptors& GBuffer::GBufferClass::ResourcesGpuDescriptors() const {
+	return mhResourcesGpuDescriptors;
 }

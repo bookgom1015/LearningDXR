@@ -1,11 +1,32 @@
 #ifndef __SHADOWRAY_HLSL__
 #define __SHADOWRAY_HLSL__
 
-#include "DxrCommon.hlsli"
+#ifndef HLSL
+#define HLSL
+#endif
+
+#include "./../../include/HlslCompaction.h"
+#include "ShadingHelpers.hlsli"
+#include "Samplers.hlsli"
 
 struct ShadowHitInfo {
 	bool IsHit;
 };
+
+ConstantBuffer<PassConstants> cbPass		: register(b0);
+
+StructuredBuffer<Vertex> gVertices[64]		: register(t0, space1);
+ByteAddressBuffer gIndices[64]				: register(t0, space2);
+
+RaytracingAccelerationStructure	gBVH		: register(t0);
+StructuredBuffer<ObjectData> gObjects		: register(t1);
+StructuredBuffer<MaterialData> gMaterials	: register(t2);
+Texture2D<float> gDepthMap					: register(t3);
+RWTexture2D<float> gShadowMap				: register(u0);
+
+// Requirements:
+//  - ByteAddressBuffer gIndices[64]
+#include "DxrShadingHelpers.hlsli"
 
 [shader("raygeneration")]
 void ShadowRayGen() {
@@ -18,17 +39,17 @@ void ShadowRayGen() {
 	
 	if (d < 1.0f) {
 		float4 posH = float4(tex.x * 2.0f - 1.0f, (1.0f - tex.y) * 2.0f - 1.0f, 0.0f, 1.0f);
-		float4 posV = mul(posH, gInvProj);
+		float4 posV = mul(posH, cbPass.InvProj);
 		posV /= posV.w;
 	
-		float dv = NdcDepthToViewDepth(d);
+		float dv = NdcDepthToViewDepth(d, cbPass.Proj);
 		posV = (dv / posV.z) * posV;
 	
-		float4 posW = mul(float4(posV.xyz, 1.0f), gInvView);
+		float4 posW = mul(float4(posV.xyz, 1.0f), cbPass.InvView);
 	
 		RayDesc ray;
 		ray.Origin = posW.xyz;
-		ray.Direction = -gLights[0].Direction;
+		ray.Direction = -cbPass.Lights[0].Direction;
 		ray.TMin = 0.001f;
 		ray.TMax = 1000.0f;
 	
@@ -49,12 +70,12 @@ void ShadowRayGen() {
 		float shadowFactor = payload.IsHit ? 0.0f : 1.0f;
 		float4 color = float4((float3)shadowFactor, 1.0f);
 
-		gShadowMap0[launchIndex] = shadowFactor;
+		gShadowMap[launchIndex] = shadowFactor;
 	
 		return;
 	}
 
-	gShadowMap0[launchIndex] = 1.0f;
+	gShadowMap[launchIndex] = 1.0f;
 }
 
 [shader("closesthit")]

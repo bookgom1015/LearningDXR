@@ -21,11 +21,11 @@ cbuffer cbRootConstants : register(b1) {
 	uint2 gDimension;
 }
 
-Texture2D<float3> gNormalMap		: register(t0);
-Texture2D<float> gDepthMap			: register(t1);
+Texture2D<float3>	gi_Normal	: register(t0);
+Texture2D<float>	gi_Depth	: register(t1);
 
-RWTexture2D<float> gInputMap		: register(u0);
-RWTexture2D<float> gOutputMap		: register(u1);
+Texture2D<float>	gi_Input	: register(t2);
+RWTexture2D<float>	go_gOutput	: register(u0);
 
 #define CacheSize (GaussianBlurComputeShaderParams::ThreadGroup::Size + 2 * GaussianBlurComputeShaderParams::MaxBlurRadius)
 groupshared float gCache[CacheSize];
@@ -42,24 +42,24 @@ void HorzBlurCS(uint3 groupThreadID : SV_GroupThreadID, uint3 dispatchThreadID :
 	};
 
 	uint2 length;
-	gInputMap.GetDimensions(length.x, length.y);
+	gi_Input.GetDimensions(length.x, length.y);
 
 	// This thread group runs N threads.  To get the extra 2*BlurRadius pixels, 
 	// have 2*BlurRadius threads sample an extra pixel.
 	if (groupThreadID.x < gBlurRadius) {
 		// Clamp out of bound samples that occur at image borders.
 		int x = max(dispatchThreadID.x - gBlurRadius, 0);
-		gCache[groupThreadID.x] = gInputMap[int2(x, dispatchThreadID.y)];
+		gCache[groupThreadID.x] = gi_Input[int2(x, dispatchThreadID.y)];
 	}
 
 	if (groupThreadID.x >= GaussianBlurComputeShaderParams::ThreadGroup::Size - gBlurRadius) {
 		// Clamp out of bound samples that occur at image borders.
 		int x = min(dispatchThreadID.x + gBlurRadius, length.x - 1);
-		gCache[groupThreadID.x + 2 * gBlurRadius] = gInputMap[int2(x, dispatchThreadID.y)].r;
+		gCache[groupThreadID.x + 2 * gBlurRadius] = gi_Input[int2(x, dispatchThreadID.y)].r;
 	}
 
 	// Clamp out of bound samples that occur at image borders.
-	gCache[groupThreadID.x + gBlurRadius] = gInputMap[min(dispatchThreadID.xy, length.xy - 1)].r;
+	gCache[groupThreadID.x + gBlurRadius] = gi_Input[min(dispatchThreadID.xy, length.xy - 1)].r;
 
 	// Wait for all threads to finish.
 	GroupMemoryBarrierWithGroupSync();
@@ -71,8 +71,8 @@ void HorzBlurCS(uint3 groupThreadID : SV_GroupThreadID, uint3 dispatchThreadID :
 	float totalWeight = blurWeights[gBlurRadius];
 
 	float2 centerTex = float2((dispatchThreadID.x + 0.5f) / (float)gDimension.x, (dispatchThreadID.y + 0.5f) / (float)gDimension.y);
-	float3 centerNormal = gNormalMap.SampleLevel(gsamLinearClamp, centerTex, 0);
-	float centerDepth = gDepthMap.SampleLevel(gsamLinearClamp, centerTex, 0);
+	float3 centerNormal = gi_Normal.SampleLevel(gsamLinearClamp, centerTex, 0);
+	float centerDepth = gi_Depth.SampleLevel(gsamLinearClamp, centerTex, 0);
 
 	float dx = 1.0f / gDimension.x;
 
@@ -80,8 +80,8 @@ void HorzBlurCS(uint3 groupThreadID : SV_GroupThreadID, uint3 dispatchThreadID :
 		if (i == 0) continue;
 
 		float2 neighborTex = float2(centerTex.x + dx * i, centerTex.y);
-		float3 neighborNormal = gNormalMap.SampleLevel(gsamLinearClamp, neighborTex, 0);
-		float neighborDepth = gDepthMap.SampleLevel(gsamLinearClamp, neighborTex, 0);
+		float3 neighborNormal = gi_Normal.SampleLevel(gsamLinearClamp, neighborTex, 0);
+		float neighborDepth = gi_Depth.SampleLevel(gsamLinearClamp, neighborTex, 0);
 
 		if (dot(neighborNormal, centerNormal) >= 0.95f && abs(neighborDepth - centerDepth) <= 0.01f) {
 			int k = groupThreadID.x + gBlurRadius + i;
@@ -91,7 +91,7 @@ void HorzBlurCS(uint3 groupThreadID : SV_GroupThreadID, uint3 dispatchThreadID :
 		}
 	}
 
-	gOutputMap[dispatchThreadID.xy] = blurColor / totalWeight;
+	go_gOutput[dispatchThreadID.xy] = blurColor / totalWeight;
 }
 
 [numthreads(1, GaussianBlurComputeShaderParams::ThreadGroup::Size, 1)]
@@ -110,24 +110,24 @@ void VertBlurCS(uint3 groupThreadID : SV_GroupThreadID, uint3 dispatchThreadID :
 	//
 
 	uint2 length;
-	gInputMap.GetDimensions(length.x, length.y);
+	gi_Input.GetDimensions(length.x, length.y);
 
 	// This thread group runs N threads.  To get the extra 2*BlurRadius pixels, 
 	// have 2*BlurRadius threads sample an extra pixel.
 	if (groupThreadID.y < gBlurRadius) {
 		// Clamp out of bound samples that occur at image borders.
 		int y = max(dispatchThreadID.y - gBlurRadius, 0);
-		gCache[groupThreadID.y] = gInputMap[int2(dispatchThreadID.x, y)].r;
+		gCache[groupThreadID.y] = gi_Input[int2(dispatchThreadID.x, y)].r;
 	}
 
 	if (groupThreadID.y >= GaussianBlurComputeShaderParams::ThreadGroup::Size - gBlurRadius) {
 		// Clamp out of bound samples that occur at image borders.
 		int y = min(dispatchThreadID.y + gBlurRadius, length.y - 1);
-		gCache[groupThreadID.y + 2 * gBlurRadius] = gInputMap[int2(dispatchThreadID.x, y)].r;
+		gCache[groupThreadID.y + 2 * gBlurRadius] = gi_Input[int2(dispatchThreadID.x, y)].r;
 	}
 
 	// Clamp out of bound samples that occur at image borders.
-	gCache[groupThreadID.y + gBlurRadius] = gInputMap[min(dispatchThreadID.xy, length.xy - 1)].r;
+	gCache[groupThreadID.y + gBlurRadius] = gi_Input[min(dispatchThreadID.xy, length.xy - 1)].r;
 
 	// Wait for all threads to finish.
 	GroupMemoryBarrierWithGroupSync();
@@ -139,8 +139,8 @@ void VertBlurCS(uint3 groupThreadID : SV_GroupThreadID, uint3 dispatchThreadID :
 	float totalWeight = blurWeights[gBlurRadius];
 
 	float2 centerTex = float2((dispatchThreadID.x + 0.5f) / (float)gDimension.x, (dispatchThreadID.y + 0.5f) / (float)gDimension.y);
-	float3 centerNormal = gNormalMap.SampleLevel(gsamLinearClamp, centerTex, 0);
-	float centerDepth = gDepthMap.SampleLevel(gsamLinearClamp, centerTex, 0);
+	float3 centerNormal = gi_Normal.SampleLevel(gsamLinearClamp, centerTex, 0);
+	float centerDepth = gi_Depth.SampleLevel(gsamLinearClamp, centerTex, 0);
 
 	float dy = 1.0f / gDimension.y;
 
@@ -148,8 +148,8 @@ void VertBlurCS(uint3 groupThreadID : SV_GroupThreadID, uint3 dispatchThreadID :
 		if (i == 0) continue;
 
 		float2 neighborTex = float2(centerTex.x, centerTex.y + dy * i);
-		float3 neighborNormal = gNormalMap.SampleLevel(gsamLinearClamp, neighborTex, 0);
-		float neighborDepth = gDepthMap.SampleLevel(gsamLinearClamp, neighborTex, 0);
+		float3 neighborNormal = gi_Normal.SampleLevel(gsamLinearClamp, neighborTex, 0);
+		float neighborDepth = gi_Depth.SampleLevel(gsamLinearClamp, neighborTex, 0);
 
 		if (dot(neighborNormal, centerNormal) >= 0.95f && abs(neighborDepth - centerDepth) <= 0.01f) {
 			int k = groupThreadID.y + gBlurRadius + i;
@@ -159,7 +159,7 @@ void VertBlurCS(uint3 groupThreadID : SV_GroupThreadID, uint3 dispatchThreadID :
 		}
 	}
 
-	gOutputMap[dispatchThreadID.xy] = blurColor / totalWeight;
+	go_gOutput[dispatchThreadID.xy] = blurColor / totalWeight;
 }
 
 #endif // __COMPUTEGAUSSIANBLUR_HLSL__

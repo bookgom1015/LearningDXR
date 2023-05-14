@@ -10,5 +10,7 @@ SamplerState gsamAnisotropicClamp	: register(s5);
 SamplerState gsamAnisotropicBorder	: register(s6);
 SamplerState gsamDepthMap			: register(s7);
 SamplerComparisonState gsamShadow	: register(s8);
+SamplerState gsamPointMirror		: register(s9);
+SamplerState gsamLinearMirror		: register(s10);
 
 #endif // __SAMPLERS_HLSLI__

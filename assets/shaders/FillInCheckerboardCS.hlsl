@@ -1,5 +1,5 @@
-#ifndef __FILLINCHECKERBOARD_HLSL__
-#define __FILLINCHECKERBOARD_HLSL__
+#ifndef __FILLINCHECKERBOARDCS_HLSL__
+#define __FILLINCHECKERBOARDCS_HLSL__
 
 // ---- Descriptions ----------------------------------------------------------------------------------
 // Filters/fills-in invalid values for a checkerboard filled input from neighborhood.
@@ -47,4 +47,4 @@ void CS(uint2 dispatchThreadID : SV_DispatchThreadID) {
 	gioLocalMeanVarianceMap[pixel] = filteredValue;
 }
 
-#endif // __FILLINCHECKERBOARD_HLSL__
+#endif // __FILLINCHECKERBOARDCS_HLSL__

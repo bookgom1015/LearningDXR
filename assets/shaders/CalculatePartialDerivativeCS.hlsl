@@ -1,5 +1,5 @@
-#ifndef __CALCULATEPARTIALDERIVATIVES_HLSL__
-#define __CALCULATEPARTIALDERIVATIVES_HLSL__
+#ifndef __CALCULATEPARTIALDERIVATIVECS_HLSL__
+#define __CALCULATEPARTIALDERIVATIVECS_HLSL__
 
 #ifndef HLSL
 #define HLSL
@@ -10,25 +10,22 @@
 #include "Samplers.hlsli"
 
 cbuffer cbRootConstants : register (b0) {
-	uint2 gDimension;
+	float2 gInvTextureDim;
 }
 
-Texture2D<float> giDepthMap						: register(t0);
-RWTexture2D<float2> goLinearDepthDerivativesMap	: register(u0);
+Texture2D<float>	gi_Depth					: register(t0);
+RWTexture2D<float2>	go_DepthPartialDerivative	: register(u0);
 
 [numthreads(DefaultComputeShaderParams::ThreadGroup::Width, DefaultComputeShaderParams::ThreadGroup::Height, 1)]
 void CS(uint2 dispatchThreadID : SV_DispatchThreadID) {
-	float dx = 1.0f / gDimension.x;
-	float dy = 1.0f / gDimension.y;
+	float2 tex = (dispatchThreadID + 0.5) * gInvTextureDim;
 
-	float2 tex = float2((dispatchThreadID.x + 0.5f) / gDimension.x, (dispatchThreadID.y + 0.5f) / gDimension.y);
+	float top	 = gi_Depth.SampleLevel(gsamPointClamp, tex + float2(0, -gInvTextureDim.y), 0);
+	float bottom = gi_Depth.SampleLevel(gsamPointClamp, tex + float2(0,  gInvTextureDim.y), 0);
+	float left	 = gi_Depth.SampleLevel(gsamPointClamp, tex + float2(-gInvTextureDim.x, 0), 0);
+	float right	 = gi_Depth.SampleLevel(gsamPointClamp, tex + float2( gInvTextureDim.x, 0), 0);
 
-	float top	 = giDepthMap.SampleLevel(gsamPointClamp, tex + float2( 0, -dy), 0);
-	float bottom = giDepthMap.SampleLevel(gsamPointClamp, tex + float2( 0,  dy), 0);
-	float left	 = giDepthMap.SampleLevel(gsamPointClamp, tex + float2(-dx, 0 ), 0);
-	float right	 = giDepthMap.SampleLevel(gsamPointClamp, tex + float2( dx, 0 ), 0);
-
-	float center = giDepthMap.SampleLevel(gsamPointClamp, tex, 0);
+	float center = gi_Depth.SampleLevel(gsamPointClamp, tex, 0);
 	float2 backwardDiff = center - float2(left, top);
 	float2 forwardDiff = float2(right, bottom) - center;
 
@@ -51,7 +48,7 @@ void CS(uint2 dispatchThreadID : SV_DispatchThreadID) {
 	float2 _sign = sign(ddxy);
 	ddxy = _sign * min(abs(ddxy), maxDdxy);
 
-	goLinearDepthDerivativesMap[dispatchThreadID] = ddxy;
+	go_DepthPartialDerivative[dispatchThreadID] = ddxy;
 }
 
-#endif // __CALCULATEPARTIALDERIVATIVES_HLSL__
+#endif // __CALCULATEPARTIALDERIVATIVECS_HLSL__

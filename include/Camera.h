@@ -24,6 +24,8 @@ public:
 	DirectX::XMMATRIX GetViewMatrix(bool unit = false) const;
 	DirectX::XMMATRIX GetProjectionMatrix(bool perspective = true) const;
 
+	__forceinline float FovY() const;
+
 private:
 	const float ThetaMinLimit = DirectX::XM_PI * 0.1f;
 	const float ThetaMaxLimit = DirectX::XM_PI * 0.9f;
@@ -40,3 +42,7 @@ private:
 	float mTheta;
 	float mRadius;
 };
+
+float Camera::FovY() const {
+	return mFovY;
+}

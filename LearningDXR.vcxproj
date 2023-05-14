@@ -11,6 +11,7 @@
     </ProjectConfiguration>
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="include\AccelerationStructure.h" />
     <ClInclude Include="include\Application.h" />
     <ClInclude Include="include\Camera.h" />
     <ClInclude Include="include\D3D12Util.h" />
@@ -18,6 +19,9 @@
     <ClInclude Include="include\DxrShadowMap.h" />
     <ClInclude Include="include\FrameResource.h" />
     <ClInclude Include="include\GameTimer.h" />
+    <ClInclude Include="include\GaussianFilter.h" />
+    <ClInclude Include="include\GaussianFilter3x3CS.h" />
+    <ClInclude Include="include\GaussianFilterCS.h" />
     <ClInclude Include="include\GBuffer.h" />
     <ClInclude Include="include\GeometryGenerator.h" />
     <ClInclude Include="include\HlslCompaction.h" />
@@ -26,20 +30,26 @@
     <ClInclude Include="include\MathHelper.h" />
     <ClInclude Include="include\Mesh.h" />
     <ClInclude Include="include\Renderer.h" />
+    <ClInclude Include="include\RenderItem.h" />
     <ClInclude Include="include\RenderMacros.h" />
     <ClInclude Include="include\Rtao.h" />
-    <ClInclude Include="include\RTXStructures.h" />
+    <ClInclude Include="include\Samplers.h" />
     <ClInclude Include="include\SBTGenerator.h" />
     <ClInclude Include="include\ShaderManager.h" />
+    <ClInclude Include="include\ShaderTable.h" />
+    <ClInclude Include="include\ShadingHelpers.h" />
     <ClInclude Include="include\ShadowMap.h" />
     <ClInclude Include="include\Ssao.h" />
     <ClInclude Include="include\UploadBuffer.h" />
   </ItemGroup>
   <ItemGroup>
     <None Include=".gitignore" />
+    <None Include="assets\shaders\CoordinatesFittedToScreen.hlsli" />
     <None Include="assets\shaders\CrossBilateralWeights.hlsli" />
     <None Include="assets\shaders\DxrBackBuffer.hlsl" />
+    <None Include="assets\shaders\DxrShadingHelpers.hlsli" />
     <None Include="assets\shaders\HlslCompaction.hlsli" />
+    <None Include="assets\shaders\Kernels.hlsli" />
     <None Include="assets\shaders\RandGenerator.hlsli" />
     <None Include="assets\shaders\Rtao.hlsli" />
     <None Include="assets\shaders\ShadingHelpers.hlsli" />
@@ -55,22 +65,27 @@
     <ClCompile Include="C:\Users\bookg\Documents\Visual Studio 2017\Libraries\imgui\imgui_draw.cpp" />
     <ClCompile Include="C:\Users\bookg\Documents\Visual Studio 2017\Libraries\imgui\imgui_tables.cpp" />
     <ClCompile Include="C:\Users\bookg\Documents\Visual Studio 2017\Libraries\imgui\imgui_widgets.cpp" />
+    <ClCompile Include="include\GaussianFilterCS.cpp" />
     <ClCompile Include="src\Application.cpp" />
     <ClCompile Include="src\Camera.cpp" />
     <ClCompile Include="src\D3D12Util.cpp" />
     <ClCompile Include="src\DxrShadowMap.cpp" />
     <ClCompile Include="src\FrameResource.cpp" />
     <ClCompile Include="src\GameTimer.cpp" />
+    <ClCompile Include="src\GaussianFilter.cpp" />
+    <ClCompile Include="src\GaussianFilter3x3CS.cpp" />
     <ClCompile Include="src\GBuffer.cpp" />
     <ClCompile Include="src\GeometryGenerator.cpp" />
     <ClCompile Include="src\Logger.cpp" />
     <ClCompile Include="src\LowRenderer.cpp" />
     <ClCompile Include="src\MathHelper.cpp" />
     <ClCompile Include="src\Renderer.cpp" />
+    <ClCompile Include="src\RenderItem.cpp" />
     <ClCompile Include="src\Rtao.cpp" />
-    <ClCompile Include="src\RTXStructures.cpp" />
+    <ClCompile Include="src\Samplers.cpp" />
     <ClCompile Include="src\SBTGenerator.cpp" />
     <ClCompile Include="src\ShaderManager.cpp" />
+    <ClCompile Include="src\ShaderTable.cpp" />
     <ClCompile Include="src\ShadowMap.cpp" />
     <ClCompile Include="src\Ssao.cpp" />
     <ClCompile Include="src\UploadBuffer.cpp" />
@@ -79,24 +94,15 @@
     <None Include="assets\shaders\Common.hlsli">
       <FileType>Document</FileType>
     </None>
-    <None Include="assets\shaders\Default.hlsl">
-      <FileType>Document</FileType>
-    </None>
     <None Include="assets\shaders\Gizmo.hlsl">
       <FileType>Document</FileType>
     </None>
     <None Include="assets\shaders\LightingUtil.hlsli">
       <FileType>Document</FileType>
     </None>
-    <None Include="assets\shaders\DxrCommon.hlsli">
-      <FileType>Document</FileType>
-    </None>
     <None Include="assets\shaders\Samplers.hlsli">
       <FileType>Document</FileType>
     </None>
-  </ItemGroup>
-  <ItemGroup>
-    <Text Include="note.txt" />
   </ItemGroup>
   <ItemGroup>
     <None Include="assets\shaders\Shadow.hlsl">
@@ -134,45 +140,67 @@
     </None>
   </ItemGroup>
   <ItemGroup>
-    <None Include="assets\shaders\DefaultRay.hlsl">
-      <FileType>Document</FileType>
-    </None>
     <None Include="assets\shaders\Rtao.hlsl">
       <FileType>Document</FileType>
     </None>
   </ItemGroup>
   <ItemGroup>
-    <None Include="assets\shaders\GroundTruthAO.hlsl">
+    <None Include="assets\shaders\GaussianBlurCS.hlsl">
       <FileType>Document</FileType>
     </None>
   </ItemGroup>
   <ItemGroup>
-    <None Include="assets\shaders\ComputeGaussianBlur.hlsl">
+    <None Include="assets\shaders\TemporalSupersamplingReverseReprojectCS.hlsl">
       <FileType>Document</FileType>
     </None>
   </ItemGroup>
   <ItemGroup>
-    <None Include="assets\shaders\TemporalSupersamplingReverseReproject.hlsl">
+    <None Include="assets\shaders\CalculatePartialDerivativeCS.hlsl">
       <FileType>Document</FileType>
     </None>
   </ItemGroup>
   <ItemGroup>
-    <None Include="assets\shaders\CalculatePartialDerivatives.hlsl">
+    <None Include="assets\shaders\TemporalSupersamplingBlendWithCurrentFrameCS.hlsl">
       <FileType>Document</FileType>
     </None>
   </ItemGroup>
   <ItemGroup>
-    <None Include="assets\shaders\TemporalSupersamplingBlendWithCurrentFrame.hlsl">
+    <None Include="assets\shaders\CalculateLocalMeanVarianceCS.hlsl">
       <FileType>Document</FileType>
     </None>
   </ItemGroup>
   <ItemGroup>
-    <None Include="assets\shaders\CalculateLocalMeanVariance.hlsl">
+    <None Include="assets\shaders\FillInCheckerboardCS.hlsl">
       <FileType>Document</FileType>
     </None>
   </ItemGroup>
   <ItemGroup>
-    <None Include="assets\shaders\FillInCheckerboard.hlsl">
+    <None Include="assets\shaders\GaussianFilter3x3CS.hlsl">
+      <FileType>Document</FileType>
+    </None>
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="assets\shaders\GaussianFilterRG3x3CS.hlsl">
+      <FileType>Document</FileType>
+    </None>
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="assets\shaders\AtrousWaveletTransformFilterCS.hlsli">
+      <FileType>Document</FileType>
+    </None>
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="assets\shaders\EdgeStoppingFilter_Gaussian3x3CS.hlsl">
+      <FileType>Document</FileType>
+    </None>
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="assets\shaders\NonFloatingPointMapDebug.hlsl">
+      <FileType>Document</FileType>
+    </None>
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="assets\shaders\DisocclusionBlur3x3CS.hlsl">
       <FileType>Document</FileType>
     </None>
   </ItemGroup>

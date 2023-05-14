@@ -64,6 +64,9 @@
     <Filter Include="Shader Files\Raytrace\RTAO\Denosing\Temporal">
       <UniqueIdentifier>{8dba6647-8e20-423b-b1f0-79b6ffe0b3bc}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Shader Files\Debug">
+      <UniqueIdentifier>{5cfb566b-e438-4061-a2fc-92ae527ffb2e}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="include\Application.h">
@@ -102,12 +105,6 @@
     <ClInclude Include="include\D3D12Util.h">
       <Filter>Header Files\Util</Filter>
     </ClInclude>
-    <ClInclude Include="include\ShaderManager.h">
-      <Filter>Header Files\Render</Filter>
-    </ClInclude>
-    <ClInclude Include="include\RTXStructures.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
     <ClInclude Include="include\FrameResource.h">
       <Filter>Header Files\Render</Filter>
     </ClInclude>
@@ -135,6 +132,33 @@
     <ClInclude Include="include\HlslCompaction.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="include\GaussianFilter.h">
+      <Filter>Header Files\Shading</Filter>
+    </ClInclude>
+    <ClInclude Include="include\RenderItem.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="include\AccelerationStructure.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="include\GaussianFilter3x3CS.h">
+      <Filter>Header Files\Shading</Filter>
+    </ClInclude>
+    <ClInclude Include="include\GaussianFilterCS.h">
+      <Filter>Header Files\Shading</Filter>
+    </ClInclude>
+    <ClInclude Include="include\Samplers.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="include\ShaderManager.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="include\ShaderTable.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="include\ShadingHelpers.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <None Include="include\LowRenderer.inl">
@@ -150,15 +174,6 @@
     <None Include="assets\shaders\Common.hlsli">
       <Filter>Shader Files\Raster</Filter>
     </None>
-    <None Include="assets\shaders\Default.hlsl">
-      <Filter>Shader Files\Raster</Filter>
-    </None>
-    <None Include="assets\shaders\DxrCommon.hlsli">
-      <Filter>Shader Files\Raytrace</Filter>
-    </None>
-    <None Include="assets\shaders\Gizmo.hlsl">
-      <Filter>Shader Files\Raster</Filter>
-    </None>
     <None Include="assets\shaders\LightingUtil.hlsli">
       <Filter>Shader Files</Filter>
     </None>
@@ -166,9 +181,6 @@
       <Filter>Shader Files\Raster</Filter>
     </None>
     <None Include="assets\shaders\GBuffer.hlsl">
-      <Filter>Shader Files\Raster</Filter>
-    </None>
-    <None Include="assets\shaders\Debug.hlsl">
       <Filter>Shader Files\Raster</Filter>
     </None>
     <None Include="assets\shaders\BackBuffer.hlsl">
@@ -182,9 +194,6 @@
     </None>
     <None Include="assets\shaders\Ssao.hlsl">
       <Filter>Shader Files\Raster</Filter>
-    </None>
-    <None Include="assets\shaders\DefaultRay.hlsl">
-      <Filter>Shader Files\Raytrace</Filter>
     </None>
     <None Include="assets\shaders\DxrBackBuffer.hlsl">
       <Filter>Shader Files\Raytrace</Filter>
@@ -204,32 +213,62 @@
     <None Include="assets\shaders\Rtao.hlsli">
       <Filter>Shader Files\Raytrace\RTAO</Filter>
     </None>
-    <None Include="assets\shaders\GroundTruthAO.hlsl">
+    <None Include="assets\shaders\GaussianFilter3x3CS.hlsl">
+      <Filter>Shader Files</Filter>
+    </None>
+    <None Include="assets\shaders\CalculateLocalMeanVarianceCS.hlsl">
       <Filter>Shader Files\Raytrace\RTAO\Denosing\Filtering</Filter>
     </None>
-    <None Include="assets\shaders\TemporalSupersamplingBlendWithCurrentFrame.hlsl">
-      <Filter>Shader Files\Raytrace\RTAO\Denosing\Temporal</Filter>
-    </None>
-    <None Include="assets\shaders\TemporalSupersamplingReverseReproject.hlsl">
-      <Filter>Shader Files\Raytrace\RTAO\Denosing\Temporal</Filter>
-    </None>
-    <None Include="assets\shaders\CalculatePartialDerivatives.hlsl">
+    <None Include="assets\shaders\FillInCheckerboardCS.hlsl">
       <Filter>Shader Files\Raytrace\RTAO\Denosing\Filtering</Filter>
+    </None>
+    <None Include="assets\shaders\TemporalSupersamplingBlendWithCurrentFrameCS.hlsl">
+      <Filter>Shader Files\Raytrace\RTAO\Denosing\Temporal</Filter>
+    </None>
+    <None Include="assets\shaders\TemporalSupersamplingReverseReprojectCS.hlsl">
+      <Filter>Shader Files\Raytrace\RTAO\Denosing\Temporal</Filter>
     </None>
     <None Include="assets\shaders\CrossBilateralWeights.hlsli">
       <Filter>Shader Files\Raytrace\RTAO\Denosing\Filtering</Filter>
     </None>
-    <None Include="assets\shaders\FillInCheckerboard.hlsl">
-      <Filter>Shader Files\Raytrace\RTAO\Denosing\Filtering</Filter>
+    <None Include="assets\shaders\DxrShadingHelpers.hlsli">
+      <Filter>Shader Files\Raytrace</Filter>
     </None>
-    <None Include="assets\shaders\CalculateLocalMeanVariance.hlsl">
-      <Filter>Shader Files\Raytrace\RTAO\Denosing\Filtering</Filter>
+    <None Include="assets\shaders\GaussianBlurCS.hlsl">
+      <Filter>Shader Files</Filter>
     </None>
     <None Include="assets\shaders\GaussianBlur.hlsl">
-      <Filter>Shader Files\Raster</Filter>
+      <Filter>Shader Files</Filter>
     </None>
-    <None Include="assets\shaders\ComputeGaussianBlur.hlsl">
-      <Filter>Shader Files\Raytrace</Filter>
+    <None Include="assets\shaders\GaussianFilterRG3x3CS.hlsl">
+      <Filter>Shader Files</Filter>
+    </None>
+    <None Include="assets\shaders\Kernels.hlsli">
+      <Filter>Shader Files</Filter>
+    </None>
+    <None Include="assets\shaders\AtrousWaveletTransformFilterCS.hlsli">
+      <Filter>Shader Files\Raytrace\RTAO\Denosing\Filtering</Filter>
+    </None>
+    <None Include="assets\shaders\EdgeStoppingFilter_Gaussian3x3CS.hlsl">
+      <Filter>Shader Files\Raytrace\RTAO\Denosing\Filtering</Filter>
+    </None>
+    <None Include="assets\shaders\Debug.hlsl">
+      <Filter>Shader Files\Debug</Filter>
+    </None>
+    <None Include="assets\shaders\Gizmo.hlsl">
+      <Filter>Shader Files\Debug</Filter>
+    </None>
+    <None Include="assets\shaders\CoordinatesFittedToScreen.hlsli">
+      <Filter>Shader Files</Filter>
+    </None>
+    <None Include="assets\shaders\NonFloatingPointMapDebug.hlsl">
+      <Filter>Shader Files\Debug</Filter>
+    </None>
+    <None Include="assets\shaders\CalculatePartialDerivativeCS.hlsl">
+      <Filter>Shader Files\Raytrace\RTAO\Denosing\Filtering</Filter>
+    </None>
+    <None Include="assets\shaders\DisocclusionBlur3x3CS.hlsl">
+      <Filter>Shader Files\Raytrace\RTAO\Denosing\Filtering</Filter>
     </None>
   </ItemGroup>
   <ItemGroup>
@@ -240,9 +279,6 @@
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="src\GameTimer.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="src\RTXStructures.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="src\GeometryGenerator.cpp">
@@ -264,9 +300,6 @@
       <Filter>Source Files\Util</Filter>
     </ClCompile>
     <ClCompile Include="src\FrameResource.cpp">
-      <Filter>Source Files\Render</Filter>
-    </ClCompile>
-    <ClCompile Include="src\ShaderManager.cpp">
       <Filter>Source Files\Render</Filter>
     </ClCompile>
     <ClCompile Include="src\Logger.cpp">
@@ -311,8 +344,26 @@
     <ClCompile Include="src\Rtao.cpp">
       <Filter>Source Files\Shading</Filter>
     </ClCompile>
-  </ItemGroup>
-  <ItemGroup>
-    <Text Include="note.txt" />
+    <ClCompile Include="src\GaussianFilter.cpp">
+      <Filter>Source Files\Shading</Filter>
+    </ClCompile>
+    <ClCompile Include="src\GaussianFilter3x3CS.cpp">
+      <Filter>Source Files\Shading</Filter>
+    </ClCompile>
+    <ClCompile Include="include\GaussianFilterCS.cpp">
+      <Filter>Source Files\Shading</Filter>
+    </ClCompile>
+    <ClCompile Include="src\RenderItem.cpp">
+      <Filter>Source Files\Render</Filter>
+    </ClCompile>
+    <ClCompile Include="src\ShaderTable.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="src\Samplers.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="src\ShaderManager.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
 </Project>

@@ -1,8 +1,8 @@
-#include "RTXStructures.h"
-#include "RenderMacros.h"
+#include "ShaderTable.h"
 #include "Logger.h"
+#include "RenderMacros.h"
 
-#include "d3dx12.h"
+#include <d3dx12.h>
 
 using namespace Microsoft::WRL;
 
@@ -52,7 +52,7 @@ void ShaderRecord::CopyTo(void* dest) const {
 ShaderRecord::PointerWithSize::PointerWithSize() :
 	Ptr(nullptr), Size(0) {}
 
-ShaderRecord::PointerWithSize::PointerWithSize(void* ptr, UINT size) : 
+ShaderRecord::PointerWithSize::PointerWithSize(void* ptr, UINT size) :
 	Ptr(ptr), Size(size) {}
 
 ShaderTable::ShaderTable(ID3D12Device* device, UINT numShaderRecords, UINT shaderRecordSize, LPCWSTR resourceName) : mDevice(device) {
@@ -83,8 +83,8 @@ std::uint8_t* ShaderTable::GetMappedShaderRecords() {
 	return mMappedShaderRecords;
 }
 
-UINT ShaderTable::GetShaderRecordSize() { 
-	return mShaderRecordSize; 
+UINT ShaderTable::GetShaderRecordSize() {
+	return mShaderRecordSize;
 }
 
 void ShaderTable::DebugPrint(std::unordered_map<void*, std::wstring>& shaderIdToStringMap) {
