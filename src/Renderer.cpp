@@ -19,6 +19,8 @@
 #include "GaussianFilterCS.h"
 #include "GaussianFilter3x3CS.h"
 #include "ShadingHelpers.h"
+#include "Debug.h"
+#include "BackBuffer.h"
 
 #include <array>
 #include <d3dcompiler.h>
@@ -26,6 +28,9 @@
 #include <imgui.h>
 #include <backends/imgui_impl_win32.h>
 #include <backends/imgui_impl_dx12.h>
+
+#define TINYOBJLOADER_IMPLEMENTATION
+#include <tinyobjloader/tiny_obj_loader.h>
 
 #undef min
 #undef max
@@ -166,13 +171,15 @@ Renderer::Renderer() {
 	mSsao = std::make_unique<Ssao::SsaoClass>();
 	mDxrShadow = std::make_unique<DxrShadow::DxrShadowClass>();
 	mRtao = std::make_unique<Rtao::RtaoClass>();
-
+	mDebug = std::make_unique<Debug::DebugClass>();
+	mBackBuffer = std::make_unique<BackBuffer::BackBufferClass>();
+	
 	mDXROutputs.resize(gNumFrameResources);
 
 	bCheckerboardSamplingEnabled = false;
 	bCheckerboardGenerateRaysForEvenPixels = false;
 
-	mDebugDisplayMapInfos.reserve(DebugShadeParams::MapCount);
+	mDebugDisplayMapInfos.resize(DebugShaderParams::MapCount);
 }
 
 Renderer::~Renderer() {
@@ -199,6 +206,8 @@ bool Renderer::Initialize(HWND hMainWnd, UINT width, UINT height) {
 	CheckIsValid(mSsao->Initialize(device, cmdList, shaderManager, width, height, 1));
 	CheckIsValid(mDxrShadow->Initialize(device, cmdList, shaderManager, width, height));
 	CheckIsValid(mRtao->Initialize(device, cmdList, shaderManager, width, height));
+	CheckIsValid(mDebug->Initialize(device, shaderManager, width, height, BackBufferFormat));
+	CheckIsValid(mBackBuffer->Initialize(device, shaderManager, width, height, BackBufferFormat, SwapChainBufferCount));
 
 	// Shared
 	CheckIsValid(CompileShaders());
@@ -303,10 +312,17 @@ bool Renderer::OnResize(UINT width, UINT height) {
 
 	const auto pCmdList = mCommandList.Get();
 
+	std::array<ID3D12Resource*, SwapChainBufferCount> backBuffers;
+	for (int i = 0; i < SwapChainBufferCount; ++i) {
+		backBuffers[i] = BackBuffer(i);
+	}
+
 	CheckIsValid(mGBuffer->OnResize(width, height, mDepthStencilBuffer.Get()));
 	CheckIsValid(mDxrShadow->OnResize(pCmdList, width, height));
 	CheckIsValid(mSsao->OnResize(width, height));
 	CheckIsValid(mRtao->OnResize(pCmdList, width, height));
+	CheckIsValid(mDebug->OnResize(width, height));
+	CheckIsValid(mBackBuffer->OnResize(backBuffers.data(), width, height));
 
 	CheckHResult(mCommandList->Close());
 	ID3D12CommandList* cmdsLists[] = { pCmdList };
@@ -408,13 +424,6 @@ bool Renderer::CompileShaders() {
 	// dxcompiler
 	//
 	{
-		const auto filePath = ShaderFilePathW + L"Debug.hlsl";
-		auto vsInfo = D3D12ShaderInfo(filePath.c_str(), L"VS", L"vs_6_3");
-		auto psInfo = D3D12ShaderInfo(filePath.c_str(), L"PS", L"ps_6_3");
-		CheckIsValid(mShaderManager->CompileShader(vsInfo, "debugVS"));
-		CheckIsValid(mShaderManager->CompileShader(psInfo, "debugPS"));
-	}
-	{
 		const auto filePath = ShaderFilePathW + L"NonFloatingPointMapDebug.hlsl";
 		auto vsInfo = D3D12ShaderInfo(filePath.c_str(), L"VS", L"vs_6_3");
 		auto psInfo = D3D12ShaderInfo(filePath.c_str(), L"PS", L"ps_6_3");
@@ -427,13 +436,6 @@ bool Renderer::CompileShaders() {
 		auto psInfo = D3D12ShaderInfo(filePath.c_str(), L"PS", L"ps_6_3");
 		CheckIsValid(mShaderManager->CompileShader(vsInfo, "gizmoVS"));
 		CheckIsValid(mShaderManager->CompileShader(psInfo, "gizmoPS"));
-	}
-	{
-		const auto filePath = ShaderFilePathW + L"BackBuffer.hlsl";
-		auto vsInfo = D3D12ShaderInfo(filePath.c_str(), L"VS", L"vs_6_3");
-		auto psInfo = D3D12ShaderInfo(filePath.c_str(), L"PS", L"ps_6_3");
-		CheckIsValid(mShaderManager->CompileShader(vsInfo, "backBufferVS"));
-		CheckIsValid(mShaderManager->CompileShader(psInfo, "backBufferPS"));
 	}
 	{
 		const auto filePath = ShaderFilePathW + L"DxrBackBuffer.hlsl";
@@ -455,6 +457,8 @@ bool Renderer::CompileShaders() {
 	CheckIsValid(mSsao->CompileShaders(ShaderFilePathW));
 	CheckIsValid(mDxrShadow->CompileShaders(ShaderFilePathW));
 	CheckIsValid(mRtao->CompileShaders(ShaderFilePathW));
+	CheckIsValid(mDebug->CompileShaders(ShaderFilePathW));
+	CheckIsValid(mBackBuffer->CompileShaders(ShaderFilePathW));
 
 	return true;
 }
@@ -595,6 +599,109 @@ bool Renderer::BuildGeometries() {
 		mGeometries[geo->Name] = std::move(geo);
 	}
 
+	// Load monkey geometry
+	{
+		tinyobj::attrib_t attrib;
+		std::vector<tinyobj::shape_t> shapes;
+		std::vector<tinyobj::material_t> materials;
+		std::string warn, err;
+
+		{
+			if (!tinyobj::LoadObj(&attrib, &shapes, &materials, &warn, &err, 
+				"./../../assets/meshes/monkey.obj", "./../../assets/meshes/")) {
+				std::wstringstream wsstream;
+				wsstream << warn.c_str() << err.c_str();
+				ReturnFalse(wsstream.str());
+			}
+		}
+
+		Mesh mesh = {};
+
+		for (const auto& shape : shapes) {
+			for (const auto& index : shape.mesh.indices) {
+				Vertex vertex = {};
+
+				int first = 3 * index.vertex_index + 0;
+				int second = 3 * index.vertex_index + 1;
+				int third = 3 * index.vertex_index + 2;
+
+				vertex.Pos = {
+					attrib.vertices[3 * index.vertex_index + 0],
+					attrib.vertices[3 * index.vertex_index + 1],
+					attrib.vertices[3 * index.vertex_index + 2]
+				};
+
+				vertex.Normal = {
+					attrib.normals[3 * index.normal_index + 0],
+					attrib.normals[3 * index.normal_index + 1],
+					attrib.normals[3 * index.normal_index + 2]
+				};
+
+				float texY = attrib.texcoords[2 * index.texcoord_index + 1];
+				vertex.TexC = {
+					attrib.texcoords[2 * index.texcoord_index + 0],
+					texY,
+				};
+
+
+				if (mesh.UniqueVertices.count(vertex) == 0) {
+					mesh.UniqueVertices[vertex] = static_cast<std::uint32_t>(mesh.Vertices.size());
+					mesh.Vertices.push_back(vertex);
+				}
+
+				mesh.Indices.push_back(static_cast<std::uint32_t>(mesh.UniqueVertices[vertex]));
+			}
+		}
+		
+		auto& vertices = mesh.Vertices;
+		auto& indices = mesh.Indices;
+
+		SubmeshGeometry monkeySubmesh;
+		monkeySubmesh.IndexCount = static_cast<UINT>(indices.size());
+		monkeySubmesh.BaseVertexLocation = 0;
+		monkeySubmesh.StartIndexLocation = 0;
+
+		const UINT vbByteSize = static_cast<UINT>(vertices.size() * sizeof(Vertex));
+		const UINT ibByteSize = static_cast<UINT>(indices.size() * sizeof(std::uint32_t));
+
+		auto geo = std::make_unique<MeshGeometry>();
+		geo->Name = "monkey";
+
+		CheckHResult(D3DCreateBlob(vbByteSize, &geo->VertexBufferCPU));
+		CopyMemory(geo->VertexBufferCPU->GetBufferPointer(), vertices.data(), vbByteSize);
+
+		CheckHResult(D3DCreateBlob(ibByteSize, &geo->IndexBufferCPU));
+		CopyMemory(geo->IndexBufferCPU->GetBufferPointer(), indices.data(), ibByteSize);
+
+		CheckIsValid(D3D12Util::CreateDefaultBuffer(
+			md3dDevice.Get(),
+			mCommandList.Get(),
+			vertices.data(),
+			vbByteSize,
+			geo->VertexBufferUploader,
+			geo->VertexBufferGPU)
+		);
+
+		CheckIsValid(D3D12Util::CreateDefaultBuffer(
+			md3dDevice.Get(),
+			mCommandList.Get(),
+			indices.data(),
+			ibByteSize,
+			geo->IndexBufferUploader,
+			geo->IndexBufferGPU)
+		);
+
+		geo->VertexByteStride = static_cast<UINT>(sizeof(Vertex));
+		geo->VertexBufferByteSize = vbByteSize;
+		geo->IndexFormat = DXGI_FORMAT_R32_UINT;
+		geo->IndexBufferByteSize = ibByteSize;
+		geo->GeometryIndex = static_cast<UINT>(mGeometries.size());
+
+		geo->DrawArgs["monkey"] = monkeySubmesh;
+
+		mGeometries[geo->Name] = std::move(geo);
+	}
+
 	return true;
 }
 
@@ -679,35 +786,6 @@ bool Renderer::BuildRootSignatures() {
 	//
 	// Rasterization
 	//
-	// Drawing back-buffer
-	{
-		CD3DX12_ROOT_PARAMETER slotRootParameter[BackBuffer::RootSignatureLayout::Count];
-
-		CD3DX12_DESCRIPTOR_RANGE texTables[7];
-		texTables[0].Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1, 0, 0);
-		texTables[1].Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1, 1, 0);
-		texTables[2].Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1, 2, 0);
-		texTables[3].Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1, 3, 0);
-		texTables[4].Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1, 4, 0);
-		texTables[5].Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1, 5, 0);
-		texTables[6].Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1, 6, 0);
-
-		slotRootParameter[BackBuffer::RootSignatureLayout::ECB_Pass].InitAsConstantBufferView(0);
-		slotRootParameter[BackBuffer::RootSignatureLayout::ESI_Color].InitAsDescriptorTable(1, &texTables[0]);
-		slotRootParameter[BackBuffer::RootSignatureLayout::ESI_Albedo].InitAsDescriptorTable(1, &texTables[1]);
-		slotRootParameter[BackBuffer::RootSignatureLayout::ESI_Normal].InitAsDescriptorTable(1, &texTables[2]);
-		slotRootParameter[BackBuffer::RootSignatureLayout::ESI_Depth].InitAsDescriptorTable(1, &texTables[3]);
-		slotRootParameter[BackBuffer::RootSignatureLayout::ESI_Specular].InitAsDescriptorTable(1, &texTables[4]);
-		slotRootParameter[BackBuffer::RootSignatureLayout::ESI_Shadow].InitAsDescriptorTable(1, &texTables[5]);
-		slotRootParameter[BackBuffer::RootSignatureLayout::ESI_AmbientCoefficient].InitAsDescriptorTable(1, &texTables[6]);
-
-		CD3DX12_ROOT_SIGNATURE_DESC rootSigDesc(
-			_countof(slotRootParameter), slotRootParameter,
-			static_cast<UINT>(samplers.size()), samplers.data(),
-			D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT
-		);
-		CheckIsValid(D3D12Util::CreateRootSignature(md3dDevice.Get(), rootSigDesc, mRootSignatures["backBuffer"].GetAddressOf()));
-	}
 	// Gizmo
 	{
 		CD3DX12_ROOT_PARAMETER slotRootParameter[Gizmo::RootSignatureLayout::Count];
@@ -720,32 +798,6 @@ bool Renderer::BuildRootSignatures() {
 			D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT
 		);
 		CheckIsValid(D3D12Util::CreateRootSignature(md3dDevice.Get(), rootSigDesc, mRootSignatures["gizmo"].GetAddressOf()));
-	}
-	// Debug
-	{
-		CD3DX12_ROOT_PARAMETER slotRootParameter[Debug::RootSignatureLayout::Count];
-
-		CD3DX12_DESCRIPTOR_RANGE texTables[5];
-		texTables[0].Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1, 0, 0);
-		texTables[1].Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1, 1, 0);
-		texTables[2].Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1, 2, 0);
-		texTables[3].Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1, 3, 0);
-		texTables[4].Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1, 4, 0);
-
-		slotRootParameter[Debug::RootSignatureLayout::ECB_Debug].InitAsConstantBufferView(0);
-		slotRootParameter[Debug::RootSignatureLayout::EC_Consts].InitAsConstants(Debug::RootConstantsLayout::Count, 1);
-		slotRootParameter[Debug::RootSignatureLayout::ESI_Debug0].InitAsDescriptorTable(1, &texTables[0]);
-		slotRootParameter[Debug::RootSignatureLayout::ESI_Debug1].InitAsDescriptorTable(1, &texTables[1]);
-		slotRootParameter[Debug::RootSignatureLayout::ESI_Debug2].InitAsDescriptorTable(1, &texTables[2]);
-		slotRootParameter[Debug::RootSignatureLayout::ESI_Debug3].InitAsDescriptorTable(1, &texTables[3]);
-		slotRootParameter[Debug::RootSignatureLayout::ESI_Debug4].InitAsDescriptorTable(1, &texTables[4]);
-
-		CD3DX12_ROOT_SIGNATURE_DESC rootSigDesc(
-			_countof(slotRootParameter), slotRootParameter,
-			static_cast<UINT>(samplers.size()), samplers.data(),
-			D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT
-		);
-		CheckIsValid(D3D12Util::CreateRootSignature(md3dDevice.Get(), rootSigDesc, mRootSignatures["debug"].GetAddressOf()));
 	}
 	// Non floating point map debug
 	{
@@ -816,6 +868,8 @@ bool Renderer::BuildRootSignatures() {
 	CheckIsValid(mGaussianFilter3x3CS->BuildRootSignature(md3dDevice.Get(), samplers));
 	CheckIsValid(mDxrShadow->BuildRootSignatures(samplers, gNumGeometryBuffers));
 	CheckIsValid(mRtao->BuildRootSignatures(samplers));
+	CheckIsValid(mDebug->BuildRootSignature(samplers));
+	CheckIsValid(mBackBuffer->BuildRootSignature(samplers));
 
 	return true;
 }
@@ -874,6 +928,11 @@ bool Renderer::BuildDescriptors() {
 		++mGeometryBufferCount;
 	}
 
+	std::array<ID3D12Resource*, SwapChainBufferCount> backBuffers;
+	for (int i = 0; i < SwapChainBufferCount; ++i) {
+		backBuffers[i] = BackBuffer(i);
+	}
+
 	auto cpuDesc = CD3DX12_CPU_DESCRIPTOR_HANDLE(pDescHeap->GetCPUDescriptorHandleForHeapStart()).Offset(EDescriptors::Count , descSize);
 	auto gpuDesc = CD3DX12_GPU_DESCRIPTOR_HANDLE(pDescHeap->GetGPUDescriptorHandleForHeapStart()).Offset(EDescriptors::Count, descSize);
 	auto rtvCpuDesc = CD3DX12_CPU_DESCRIPTOR_HANDLE(mRtvHeap->GetCPUDescriptorHandleForHeapStart()).Offset(SwapChainBufferCount, rtvDescSize);
@@ -884,6 +943,7 @@ bool Renderer::BuildDescriptors() {
 	mDxrShadow->BuildDescriptors(cpuDesc, gpuDesc, descSize);
 	mSsao->BuildDescriptors(cpuDesc, gpuDesc, rtvCpuDesc, descSize, rtvDescSize);
 	mRtao->BuildDescriptors(cpuDesc, gpuDesc, descSize);	
+	mBackBuffer->BuildDescriptors(backBuffers.data(), cpuDesc, gpuDesc, descSize);
 
 	return true;
 }
@@ -914,23 +974,6 @@ bool Renderer::BuildPSOs() {
 	quadPsoDesc.DepthStencilState.DepthEnable = FALSE;
 	quadPsoDesc.DSVFormat = DXGI_FORMAT_UNKNOWN;
 
-	D3D12_GRAPHICS_PIPELINE_STATE_DESC backBufferPsoDesc = quadPsoDesc;
-	backBufferPsoDesc.pRootSignature = mRootSignatures["backBuffer"].Get();
-	{
-		auto vs = mShaderManager->GetDxcShader("backBufferVS");
-		auto ps = mShaderManager->GetDxcShader("backBufferPS");
-		backBufferPsoDesc.VS = {
-			reinterpret_cast<BYTE*>(vs->GetBufferPointer()),
-			vs->GetBufferSize()
-		};
-		backBufferPsoDesc.PS = {
-			reinterpret_cast<BYTE*>(ps->GetBufferPointer()),
-			ps->GetBufferSize()
-		};
-	}	
-	backBufferPsoDesc.RTVFormats[0] = BackBufferFormat;
-	CheckHResult(md3dDevice->CreateGraphicsPipelineState(&backBufferPsoDesc, IID_PPV_ARGS(&mPSOs["backBuffer"])));
-
 	D3D12_GRAPHICS_PIPELINE_STATE_DESC gizmoPsoDesc = quadPsoDesc;
 	gizmoPsoDesc.pRootSignature = mRootSignatures["gizmo"].Get();
 	{
@@ -951,23 +994,6 @@ bool Renderer::BuildPSOs() {
 	gizmoPsoDesc.RTVFormats[0] = BackBufferFormat;
 	gizmoPsoDesc.DSVFormat = DXGI_FORMAT_UNKNOWN;
 	CheckHResult(md3dDevice->CreateGraphicsPipelineState(&gizmoPsoDesc, IID_PPV_ARGS(&mPSOs["gizmo"])));	
-
-	D3D12_GRAPHICS_PIPELINE_STATE_DESC debugPsoDesc = quadPsoDesc;
-	debugPsoDesc.pRootSignature = mRootSignatures["debug"].Get();
-	{
-		auto vs = mShaderManager->GetDxcShader("debugVS");
-		auto ps = mShaderManager->GetDxcShader("debugPS");
-		debugPsoDesc.VS = {
-			reinterpret_cast<BYTE*>(vs->GetBufferPointer()),
-			vs->GetBufferSize()
-		};
-		debugPsoDesc.PS = {
-			reinterpret_cast<BYTE*>(ps->GetBufferPointer()),
-			ps->GetBufferSize()
-		};
-	}
-	debugPsoDesc.RTVFormats[0] = BackBufferFormat;
-	CheckHResult(md3dDevice->CreateGraphicsPipelineState(&debugPsoDesc, IID_PPV_ARGS(&mPSOs["debug"])));
 
 	D3D12_GRAPHICS_PIPELINE_STATE_DESC nonFPDebugPsoDesc = quadPsoDesc;
 	nonFPDebugPsoDesc.pRootSignature = mRootSignatures["nonFPDebug"].Get();
@@ -1011,6 +1037,8 @@ bool Renderer::BuildPSOs() {
 	CheckIsValid(mGaussianFilter3x3CS->BuildPso(md3dDevice.Get(), mShaderManager.get()));
 	CheckIsValid(mSsao->BuildPso());
 	CheckIsValid(mRtao->BuildPSO());
+	CheckIsValid(mDebug->BuildPso());
+	CheckIsValid(mBackBuffer->BuildPso());
 
 	return true;
 }
@@ -1069,6 +1097,19 @@ bool Renderer::BuildRenderItems() {
 		gridRitem->BaseVertexLocation = gridRitem->Geo->DrawArgs["grid"].BaseVertexLocation;
 		mRitems[RenderItem::RenderType::EOpaque].push_back(gridRitem.get());
 		mAllRitems.push_back(std::move(gridRitem));
+	}
+	{
+		auto monkeyRitem = std::make_unique<RenderItem>();
+		XMStoreFloat4x4(&monkeyRitem->World, XMMatrixRotationAxis(XMVectorSet(0.0f, 1.0f, 0.0f, 0.0f), XM_PI));
+		monkeyRitem->ObjSBIndex = count++;
+		monkeyRitem->Geo = mGeometries["monkey"].get();
+		monkeyRitem->Mat = mMaterials["white"].get();
+		monkeyRitem->PrimitiveType = D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
+		monkeyRitem->IndexCount = monkeyRitem->Geo->DrawArgs["monkey"].IndexCount;
+		monkeyRitem->StartIndexLocation = monkeyRitem->Geo->DrawArgs["monkey"].StartIndexLocation;
+		monkeyRitem->BaseVertexLocation = monkeyRitem->Geo->DrawArgs["monkey"].BaseVertexLocation;
+		mRitems[RenderItem::RenderType::EOpaque].push_back(monkeyRitem.get());
+		mAllRitems.push_back(std::move(monkeyRitem));
 	}
 
 	return true;
@@ -1189,6 +1230,24 @@ bool Renderer::BuildTLAS() {
 		instanceDesc.Flags = D3D12_RAYTRACING_INSTANCE_FLAG_TRIANGLE_FRONT_COUNTERCLOCKWISE;
 		instanceDescs.push_back(instanceDesc);
 	}
+	{
+		XMFLOAT4X4 mat;
+		XMStoreFloat4x4(&mat, XMMatrixTranspose(XMMatrixRotationAxis(XMVectorSet(0.0f, 1.0f, 0.0f, 0.0f), XM_PI)));
+
+		D3D12_RAYTRACING_INSTANCE_DESC instanceDesc = {};
+		instanceDesc.InstanceID = instanceDescs.size();
+		instanceDesc.InstanceContributionToHitGroupIndex = 0;
+		instanceDesc.InstanceMask = 0xFF;
+		for (int i = 0; i < 3; ++i) {
+			for (int j = 0; j < 4; ++j) {
+				instanceDesc.Transform[i][j] = mat.m[i][j];
+			}
+		}
+		instanceDesc.AccelerationStructure = mBLASs["monkey"]->Result->GetGPUVirtualAddress();
+		instanceDesc.Flags = D3D12_RAYTRACING_INSTANCE_FLAG_TRIANGLE_FRONT_COUNTERCLOCKWISE;
+		instanceDescs.push_back(instanceDesc);
+	}
+
 
 	// Create the TLAS instance buffer
 	D3D12BufferCreateInfo instanceBufferInfo;
@@ -1826,15 +1885,11 @@ bool Renderer::DrawSsao() {
 
 bool Renderer::DrawBackBuffer() {
 	const auto cmdList = mCommandList.Get();
-	CheckHResult(cmdList->Reset(mCurrFrameResource->CmdListAlloc.Get(), mPSOs["backBuffer"].Get()));
-	cmdList->SetGraphicsRootSignature(mRootSignatures["backBuffer"].Get());
+	CheckHResult(cmdList->Reset(mCurrFrameResource->CmdListAlloc.Get(), nullptr));
 
 	const auto pDescHeap = mCbvSrvUavHeap.Get();
 	ID3D12DescriptorHeap* descriptorHeaps[] = { pDescHeap };
 	cmdList->SetDescriptorHeaps(_countof(descriptorHeaps), descriptorHeaps);
-
-	cmdList ->RSSetViewports(1, &mScreenViewport);
-	cmdList ->RSSetScissorRects(1, &mScissorRect);
 
 	const auto& gbufferResourcesGpuDescriptors = mGBuffer->ResourcesGpuDescriptors();
 	const auto& aoResourcesGpuDescriptors = mSsao->ResourcesGpuDescriptors();
@@ -1853,41 +1908,18 @@ bool Renderer::DrawBackBuffer() {
 	cmdList->OMSetRenderTargets(1, &pCurrBackBufferView, true, nullptr);
 
 	auto passCBAddress = mCurrFrameResource->PassCB.Resource()->GetGPUVirtualAddress();
-	cmdList->SetGraphicsRootConstantBufferView(BackBuffer::RootSignatureLayout::ECB_Pass, passCBAddress);
 	
-	cmdList->SetGraphicsRootDescriptorTable(
-		BackBuffer::RootSignatureLayout::ESI_Color,
-		gbufferResourcesGpuDescriptors[GBuffer::Resources::Descriptors::ES_Color]
-	);
-	cmdList->SetGraphicsRootDescriptorTable(
-		BackBuffer::RootSignatureLayout::ESI_Albedo,
-		gbufferResourcesGpuDescriptors[GBuffer::Resources::Descriptors::ES_Albedo]
-	);
-	cmdList->SetGraphicsRootDescriptorTable(
-		BackBuffer::RootSignatureLayout::ESI_Normal,
-		gbufferResourcesGpuDescriptors[GBuffer::Resources::Descriptors::ES_NormalDepth]
-	);
-	cmdList->SetGraphicsRootDescriptorTable(
-		BackBuffer::RootSignatureLayout::ESI_Depth,
-		gbufferResourcesGpuDescriptors[GBuffer::Resources::Descriptors::ES_Depth]
-	);
-	cmdList->SetGraphicsRootDescriptorTable(
-		BackBuffer::RootSignatureLayout::ESI_Specular,
-		gbufferResourcesGpuDescriptors[GBuffer::Resources::Descriptors::ES_Specular]
-	);
-	cmdList->SetGraphicsRootDescriptorTable(
-		BackBuffer::RootSignatureLayout::ESI_Shadow,
-		mShadow->Srv()
-	);
-	cmdList->SetGraphicsRootDescriptorTable(
-		BackBuffer::RootSignatureLayout::ESI_AmbientCoefficient,
+	mBackBuffer->Run(
+		cmdList,
+		passCBAddress,
+		gbufferResourcesGpuDescriptors[GBuffer::Resources::Descriptors::ES_Color],
+		gbufferResourcesGpuDescriptors[GBuffer::Resources::Descriptors::ES_Albedo],
+		gbufferResourcesGpuDescriptors[GBuffer::Resources::Descriptors::ES_NormalDepth],
+		gbufferResourcesGpuDescriptors[GBuffer::Resources::Descriptors::ES_Depth],
+		gbufferResourcesGpuDescriptors[GBuffer::Resources::Descriptors::ES_Specular],
+		mShadow->Srv(),
 		aoResourcesGpuDescriptors[Ssao::Resources::Descriptors::ES_AmbientCoefficient]
 	);
-
-	cmdList->IASetVertexBuffers(0, 0, nullptr);
-	cmdList->IASetIndexBuffer(nullptr);
-	cmdList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
-	cmdList->DrawInstanced(6, 1, 0, 0);
 
 	cmdList->ResourceBarrier(
 		1,
@@ -1949,23 +1981,8 @@ bool Renderer::DrawDebugLayer() {
 		cmdList->IASetVertexBuffers(0, 0, nullptr);
 		cmdList->IASetIndexBuffer(nullptr);
 		cmdList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
-		{
-			UINT size = static_cast<UINT>(mDebugDisplayMapInfos.size());
-			if (size > 0) {
-				cmdList->SetPipelineState(mPSOs["debug"].Get());
-				cmdList->SetGraphicsRootSignature(mRootSignatures["debug"].Get());
-
-				cmdList->SetGraphicsRootConstantBufferView(Debug::RootSignatureLayout::ECB_Debug, debugCBAddress);
-
-				UINT values[Debug::RootConstantsLayout::Count];
-				for (UINT i = 0; i < size; ++i) {
-					cmdList->SetGraphicsRootDescriptorTable(Debug::RootSignatureLayout::ESI_Debug0 + i, mDebugDisplayMapInfos[i].Handle);
-					values[i] = mDebugDisplayMapInfos[i].SampleMask;
-				}
-				cmdList->SetGraphicsRoot32BitConstants(Debug::RootSignatureLayout::EC_Consts, _countof(values), values, 0);
-				cmdList->DrawInstanced(6, size, 0, 0);
-			}
-		}
+		
+		//mDebug->Run(cmdList, , DepthStencilView());
 		{
 			auto temporalCurrentFrameResourceIndex = mRtao->TemporalCurrentFrameResourceIndex();
 
@@ -2078,131 +2095,131 @@ bool Renderer::DrawImGui() {
 		auto temporalCurrentFrameTemporalAOCoefficientResourceIndex = mRtao->TemporalCurrentFrameTemporalAOCoefficientResourceIndex();
 		UINT temporalPrevFrameTemporalAOCoefficientResourceIndex = (temporalCurrentFrameTemporalAOCoefficientResourceIndex + 1) % 2;
 
-		if (ImGui::Checkbox("Color Map", &mDebugDisplays[DebugDisplay::Layout::EColor])) {
+		if (ImGui::Checkbox("Color Map", &mDebugDisplayMasks[DebugDisplay::Layout::EColor])) {
 			BuildDebugDescriptors(
-				std::ref(mDebugDisplays[DebugDisplay::Layout::EColor]),
+				std::ref(mDebugDisplayMasks[DebugDisplay::Layout::EColor]),
 				gbufferResourcesGpuDescriptors[GBuffer::Resources::Descriptors::ES_Color],
-				DebugShadeParams::DisplayMark::RGB
+				DebugShaderParams::SampleMask::RGB
 			);
 		}
-		if (ImGui::Checkbox("Albedo Map", &mDebugDisplays[DebugDisplay::Layout::EAlbedo])) {
+		if (ImGui::Checkbox("Albedo Map", &mDebugDisplayMasks[DebugDisplay::Layout::EAlbedo])) {
 			BuildDebugDescriptors(
-				std::ref(mDebugDisplays[DebugDisplay::Layout::EAlbedo]),
+				std::ref(mDebugDisplayMasks[DebugDisplay::Layout::EAlbedo]),
 				gbufferResourcesGpuDescriptors[GBuffer::Resources::Descriptors::ES_Albedo],
-				DebugShadeParams::DisplayMark::RGB
+				DebugShaderParams::SampleMask::RGB
 			);
 		}
-		if (ImGui::Checkbox("NormalDepth Map", &mDebugDisplays[DebugDisplay::Layout::ENormalDepth])) {
+		if (ImGui::Checkbox("NormalDepth Map", &mDebugDisplayMasks[DebugDisplay::Layout::ENormalDepth])) {
 			BuildDebugDescriptors(
-				std::ref(mDebugDisplays[DebugDisplay::Layout::ENormalDepth]),
+				std::ref(mDebugDisplayMasks[DebugDisplay::Layout::ENormalDepth]),
 				gbufferResourcesGpuDescriptors[GBuffer::Resources::Descriptors::ES_NormalDepth],
-				DebugShadeParams::DisplayMark::RGB
+				DebugShaderParams::SampleMask::RGB
 			);
 		}
-		if (ImGui::Checkbox("Depth Map", &mDebugDisplays[DebugDisplay::Layout::EDepth])) {
+		if (ImGui::Checkbox("Depth Map", &mDebugDisplayMasks[DebugDisplay::Layout::EDepth])) {
 			BuildDebugDescriptors(
-				std::ref(mDebugDisplays[DebugDisplay::Layout::EDepth]),
+				std::ref(mDebugDisplayMasks[DebugDisplay::Layout::EDepth]),
 				gbufferResourcesGpuDescriptors[GBuffer::Resources::Descriptors::ES_Depth],
-				DebugShadeParams::DisplayMark::RRR
+				DebugShaderParams::SampleMask::RRR
 			);
 		}
-		if (ImGui::Checkbox("Specular Map", &mDebugDisplays[DebugDisplay::Layout::ESpecular])) {
+		if (ImGui::Checkbox("Specular Map", &mDebugDisplayMasks[DebugDisplay::Layout::ESpecular])) {
 			BuildDebugDescriptors(
-				std::ref(mDebugDisplays[DebugDisplay::Layout::ESpecular]),
+				std::ref(mDebugDisplayMasks[DebugDisplay::Layout::ESpecular]),
 				gbufferResourcesGpuDescriptors[GBuffer::Resources::Descriptors::ES_Specular],
-				DebugShadeParams::DisplayMark::RGB
+				DebugShaderParams::SampleMask::RGB
 			);
 		}
-		if (ImGui::Checkbox("Velocity Map", &mDebugDisplays[DebugDisplay::Layout::EVelocity])) {
+		if (ImGui::Checkbox("Velocity Map", &mDebugDisplayMasks[DebugDisplay::Layout::EVelocity])) {
 			BuildDebugDescriptors(
-				std::ref(mDebugDisplays[DebugDisplay::Layout::EVelocity]),
+				std::ref(mDebugDisplayMasks[DebugDisplay::Layout::EVelocity]),
 				gbufferResourcesGpuDescriptors[GBuffer::Resources::Descriptors::ES_Velocity],
-				DebugShadeParams::DisplayMark::RG
+				DebugShaderParams::SampleMask::RG
 			);
 		}
-		if (ImGui::Checkbox("SSAO", &mDebugDisplays[DebugDisplay::Layout::EScreenAO])) {
+		if (ImGui::Checkbox("SSAO", &mDebugDisplayMasks[DebugDisplay::Layout::EScreenAO])) {
 			BuildDebugDescriptors(
-				std::ref(mDebugDisplays[DebugDisplay::Layout::EScreenAO]),
+				std::ref(mDebugDisplayMasks[DebugDisplay::Layout::EScreenAO]),
 				ssaoResourcesGpuDescriptors[Ssao::Resources::Descriptors::ES_AmbientCoefficient],
-				DebugShadeParams::DisplayMark::RRR
+				DebugShaderParams::SampleMask::RRR
 			);
 		}
-		if (ImGui::Checkbox("Shadow Map", &mDebugDisplays[DebugDisplay::Layout::EShadow])) {
+		if (ImGui::Checkbox("Shadow Map", &mDebugDisplayMasks[DebugDisplay::Layout::EShadow])) {
 			BuildDebugDescriptors(
-				std::ref(mDebugDisplays[DebugDisplay::Layout::EShadow]),
+				std::ref(mDebugDisplayMasks[DebugDisplay::Layout::EShadow]),
 				mShadow->Srv(),
-				DebugShadeParams::DisplayMark::RRR
+				DebugShaderParams::SampleMask::RRR
 			);
 		}
-		if (ImGui::Checkbox("DXR Shadow Map", &mDebugDisplays[DebugDisplay::Layout::EDxrShadow])) {
+		if (ImGui::Checkbox("DXR Shadow Map", &mDebugDisplayMasks[DebugDisplay::Layout::EDxrShadow])) {
 			BuildDebugDescriptors(
-				std::ref(mDebugDisplays[DebugDisplay::Layout::EDxrShadow]),
+				std::ref(mDebugDisplayMasks[DebugDisplay::Layout::EDxrShadow]),
 				dxrShadowResourcesGpuDescriptors[DxrShadow::Resources::Descriptors::ES_Shadow],
-				DebugShadeParams::DisplayMark::RRR
+				DebugShaderParams::SampleMask::RRR
 			);
 		}
-		if (ImGui::Checkbox("AO Coefficient", &mDebugDisplays[DebugDisplay::Layout::EAOCoefficient])) {
+		if (ImGui::Checkbox("AO Coefficient", &mDebugDisplayMasks[DebugDisplay::Layout::EAOCoefficient])) {
 			BuildDebugDescriptors(
-				std::ref(mDebugDisplays[DebugDisplay::Layout::EAOCoefficient]),
+				std::ref(mDebugDisplayMasks[DebugDisplay::Layout::EAOCoefficient]),
 				rtaoResourcesGpuDescriptors[Rtao::AOResources::Descriptors::ES_AmbientCoefficient],
-				DebugShadeParams::DisplayMark::RRR
+				DebugShaderParams::SampleMask::RRR
 			);
 		}
-		if (ImGui::Checkbox("Temporal AO Coefficient", &mDebugDisplays[DebugDisplay::Layout::ETemporalAOCoefficient])) {
+		if (ImGui::Checkbox("Temporal AO Coefficient", &mDebugDisplayMasks[DebugDisplay::Layout::ETemporalAOCoefficient])) {
 			BuildDebugDescriptors(
-				std::ref(mDebugDisplays[DebugDisplay::Layout::ETemporalAOCoefficient]),
+				std::ref(mDebugDisplayMasks[DebugDisplay::Layout::ETemporalAOCoefficient]),
 				temporalAOCoefficientsGpuDescriptors[temporalCurrentFrameTemporalAOCoefficientResourceIndex][Rtao::TemporalAOCoefficients::Descriptors::Srv],
-				DebugShadeParams::DisplayMark::RRR
+				DebugShaderParams::SampleMask::RRR
 			);
 		}
-		if (ImGui::Checkbox("Local Mean", &mDebugDisplays[DebugDisplay::Layout::ELocalMeanVariance_Mean])) {
+		if (ImGui::Checkbox("Local Mean", &mDebugDisplayMasks[DebugDisplay::Layout::ELocalMeanVariance_Mean])) {
 			BuildDebugDescriptors(
-				std::ref(mDebugDisplays[DebugDisplay::Layout::ELocalMeanVariance_Mean]),
+				std::ref(mDebugDisplayMasks[DebugDisplay::Layout::ELocalMeanVariance_Mean]),
 				localMeanVarianceResourcesGpuDescriptors[Rtao::LocalMeanVarianceResources::Descriptors::ES_Raw],
-				DebugShadeParams::DisplayMark::RRR
+				DebugShaderParams::SampleMask::RRR
 			);
 		}
-		if (ImGui::Checkbox("Local Variance", &mDebugDisplays[DebugDisplay::Layout::ELocalMeanVariance_Var])) {
+		if (ImGui::Checkbox("Local Variance", &mDebugDisplayMasks[DebugDisplay::Layout::ELocalMeanVariance_Var])) {
 			BuildDebugDescriptors(
-				std::ref(mDebugDisplays[DebugDisplay::Layout::ELocalMeanVariance_Var]),
+				std::ref(mDebugDisplayMasks[DebugDisplay::Layout::ELocalMeanVariance_Var]),
 				localMeanVarianceResourcesGpuDescriptors[Rtao::LocalMeanVarianceResources::Descriptors::ES_Raw],
-				DebugShadeParams::DisplayMark::GGG
+				DebugShaderParams::SampleMask::GGG
 			);
 		}
-		if (ImGui::Checkbox("AO Variance", &mDebugDisplays[DebugDisplay::Layout::EAOVariance])) {
+		if (ImGui::Checkbox("AO Variance", &mDebugDisplayMasks[DebugDisplay::Layout::EAOVariance])) {
 			BuildDebugDescriptors(
-				std::ref(mDebugDisplays[DebugDisplay::Layout::EAOVariance]),
+				std::ref(mDebugDisplayMasks[DebugDisplay::Layout::EAOVariance]),
 				aoVarianceResourcesGpuDescriptors[ShaderArgs::Denoiser::UseSmoothingVariance ? 
 					Rtao::AOVarianceResources::Descriptors::ES_Smoothed : Rtao::AOVarianceResources::Descriptors::ES_Raw],
-				DebugShadeParams::DisplayMark::RRR
+				DebugShaderParams::SampleMask::RRR
 			);
 		}
-		if (ImGui::Checkbox("AO Ray Hit Distance", &mDebugDisplays[DebugDisplay::Layout::EAORayHitDistance])) {
+		if (ImGui::Checkbox("AO Ray Hit Distance", &mDebugDisplayMasks[DebugDisplay::Layout::EAORayHitDistance])) {
 			BuildDebugDescriptors(
-				std::ref(mDebugDisplays[DebugDisplay::Layout::EAORayHitDistance]),
+				std::ref(mDebugDisplayMasks[DebugDisplay::Layout::EAORayHitDistance]),
 				rtaoResourcesGpuDescriptors[Rtao::AOResources::Descriptors::ES_RayHitDistance],
-				DebugShadeParams::DisplayMark::RayHitDist
+				DebugShaderParams::SampleMask::RayHitDist
 			);
 		}
-		if (ImGui::Checkbox("Temporal Ray Hit Distance", &mDebugDisplays[DebugDisplay::Layout::ETemporalRayHitDistance])) {
+		if (ImGui::Checkbox("Temporal Ray Hit Distance", &mDebugDisplayMasks[DebugDisplay::Layout::ETemporalRayHitDistance])) {
 			BuildDebugDescriptors(
-				std::ref(mDebugDisplays[DebugDisplay::Layout::ETemporalRayHitDistance]),
+				std::ref(mDebugDisplayMasks[DebugDisplay::Layout::ETemporalRayHitDistance]),
 				temporalCachesGpuDescriptors[temporalCurrentFrameResourceIndex][Rtao::TemporalCaches::Descriptors::ES_RayHitDistance],
-				DebugShadeParams::DisplayMark::RayHitDist
+				DebugShaderParams::SampleMask::RayHitDist
 			);
 		}
-		if (ImGui::Checkbox("Partial Depth Derivatives", &mDebugDisplays[DebugDisplay::Layout::EPartialDepthDerivatives])) {
+		if (ImGui::Checkbox("Partial Depth Derivatives", &mDebugDisplayMasks[DebugDisplay::Layout::EPartialDepthDerivatives])) {
 			BuildDebugDescriptors(
-				std::ref(mDebugDisplays[DebugDisplay::Layout::EPartialDepthDerivatives]),
+				std::ref(mDebugDisplayMasks[DebugDisplay::Layout::EPartialDepthDerivatives]),
 				mRtao->TsppCoefficientSquaredMeanRayHitDistanceSrv(),
-				DebugShadeParams::DisplayMark::RG
+				DebugShaderParams::SampleMask::RG
 			);
 		}
-		if (ImGui::Checkbox("Disocclusion Blur Strength", &mDebugDisplays[DebugDisplay::Layout::EDisocclusionBlurStrength])) {
+		if (ImGui::Checkbox("Disocclusion Blur Strength", &mDebugDisplayMasks[DebugDisplay::Layout::EDisocclusionBlurStrength])) {
 			BuildDebugDescriptors(
-				std::ref(mDebugDisplays[DebugDisplay::Layout::EDisocclusionBlurStrength]),
+				std::ref(mDebugDisplayMasks[DebugDisplay::Layout::EDisocclusionBlurStrength]),
 				mRtao->DisocclusionBlurStrengthSrv(),
-				DebugShadeParams::DisplayMark::RRR
+				DebugShaderParams::SampleMask::RRR
 			);
 		}
 

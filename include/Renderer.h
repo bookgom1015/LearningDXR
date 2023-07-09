@@ -31,57 +31,17 @@ namespace Shadow { class ShadowClass; }
 namespace Ssao { class SsaoClass; }
 namespace DxrShadow { class DxrShadowClass; }
 namespace Rtao { class RtaoClass; }
+namespace Debug { class DebugClass; }
+namespace BackBuffer { class BackBufferClass; }
 
 const int gNumGeometryBuffers = 64;
 const int gNumObjects = 32;
 const int gNumMaterials = 32;
 
-namespace BackBuffer {
-	namespace RootSignatureLayout {
-		enum {
-			ECB_Pass = 0,
-			ESI_Color,
-			ESI_Albedo,
-			ESI_Normal,
-			ESI_Depth,
-			ESI_Specular,
-			ESI_Shadow,
-			ESI_AmbientCoefficient,
-			Count
-		};
-	}
-}
-
 namespace Gizmo {
 	namespace RootSignatureLayout {
 		enum {
 			ECB_Pass = 0,
-			Count
-		};
-	}
-}
-
-namespace Debug {
-	namespace RootSignatureLayout {
-		enum {
-			ECB_Debug = 0,
-			EC_Consts,
-			ESI_Debug0,
-			ESI_Debug1,
-			ESI_Debug2,
-			ESI_Debug3,
-			ESI_Debug4,
-			Count
-		};
-	}
-	
-	namespace RootConstantsLayout {
-		enum {
-			EDisplayMask0 = 0,
-			EDisplayMask1,
-			EDisplayMask2,
-			EDisplayMask3,
-			EDisplayMask4,
 			Count
 		};
 	}
@@ -299,7 +259,8 @@ private:
 	std::array<DirectX::XMFLOAT4, 3> mBlurWeights;
 
 	std::vector<DebugDisplayMapInfo> mDebugDisplayMapInfos;
-	std::array<bool, DebugDisplay::Layout::Count> mDebugDisplays;
+	std::array<bool, DebugDisplay::Layout::Count> mDebugDisplayMasks;
+	UINT mNumDebugMaps;
 
 	std::unique_ptr<GBuffer::GBufferClass> mGBuffer;
 	std::unique_ptr<GaussianFilter::GaussianFilterClass> mGaussianFilter;
@@ -307,6 +268,9 @@ private:
 	std::unique_ptr<GaussianFilter3x3CS::GaussianFilter3x3CSClass> mGaussianFilter3x3CS;
 
 	std::mt19937 mGeneratorURNG;
+
+	std::unique_ptr<Debug::DebugClass> mDebug;
+	std::unique_ptr<BackBuffer::BackBufferClass> mBackBuffer;
 
 	//
 	// Rasterization

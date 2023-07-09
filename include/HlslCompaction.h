@@ -3,6 +3,9 @@
 
 #ifdef HLSL
 #include "HlslCompaction.hlsli"
+#else
+#include <unordered_map>
+#include <MathHelper.h>
 #endif
 
 #define MaxLights 16
@@ -26,7 +29,34 @@ struct Vertex {
 	DirectX::XMFLOAT3 Normal;
 	DirectX::XMFLOAT2 TexC;
 	DirectX::XMFLOAT3 Tangent;
+
+#ifndef HLSL
+	bool operator==(const Vertex& other) const {
+		return MathHelper::IsEqual(Pos, other.Pos) &&
+			MathHelper::IsEqual(Normal, other.Normal) &&
+			MathHelper::IsEqual(TexC, other.TexC);
+	}
+#endif
 };
+
+#ifndef HLSL
+namespace std {
+	template<> struct hash<Vertex> {
+		size_t operator()(Vertex const& vertex) const {
+			size_t pos = static_cast<size_t>(vertex.Pos.x + vertex.Pos.y + vertex.Pos.z);
+			size_t normal = static_cast<size_t>(vertex.Normal.x + vertex.Normal.y + vertex.Normal.z);
+			size_t texc = static_cast<size_t>(vertex.TexC.x + vertex.TexC.y);
+			return (pos ^ normal ^ texc);
+		}
+	};
+}
+
+struct Mesh {
+	std::unordered_map<Vertex, std::uint32_t>	UniqueVertices;
+	std::vector<Vertex>							Vertices;
+	std::vector<std::uint32_t>					Indices;
+};
+#endif
 
 struct ObjectData {
 	DirectX::XMFLOAT4X4 World;
@@ -188,18 +218,18 @@ namespace DefaultComputeShaderParams {
 	}
 }
 
-namespace DebugShadeParams {
+namespace DebugShaderParams {
 	static const int MapCount = 5;
 
-	namespace DisplayMark {
-		enum {
-			RGB		= 1 << 0,
-			RG			= 1 << 1,
-			RRR			= 1 << 2,
-			GGG			= 1 << 3,
-			BBB			= 1 << 4,
-			AAA			= 1 << 5,
-			RayHitDist	= 1 << 6
+	namespace SampleMask {
+		enum Type {
+			RGB			= 0,
+			RG			= 1 << 0,
+			RRR			= 1 << 1,
+			GGG			= 1 << 2,
+			BBB			= 1 << 3,
+			AAA			= 1 << 4,
+			RayHitDist	= 1 << 5
 		};
 	}
 }

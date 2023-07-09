@@ -13,9 +13,11 @@
   <ItemGroup>
     <ClInclude Include="include\AccelerationStructure.h" />
     <ClInclude Include="include\Application.h" />
+    <ClInclude Include="include\BackBuffer.h" />
     <ClInclude Include="include\Camera.h" />
     <ClInclude Include="include\D3D12Util.h" />
     <ClInclude Include="include\d3dx12.h" />
+    <ClInclude Include="include\Debug.h" />
     <ClInclude Include="include\DxrShadowMap.h" />
     <ClInclude Include="include\FrameResource.h" />
     <ClInclude Include="include\GameTimer.h" />
@@ -24,6 +26,7 @@
     <ClInclude Include="include\GaussianFilterCS.h" />
     <ClInclude Include="include\GBuffer.h" />
     <ClInclude Include="include\GeometryGenerator.h" />
+    <ClInclude Include="include\GpuResource.h" />
     <ClInclude Include="include\HlslCompaction.h" />
     <ClInclude Include="include\Logger.h" />
     <ClInclude Include="include\LowRenderer.h" />
@@ -67,8 +70,10 @@
     <ClCompile Include="C:\Users\bookg\Documents\Visual Studio 2017\Libraries\imgui\imgui_widgets.cpp" />
     <ClCompile Include="include\GaussianFilterCS.cpp" />
     <ClCompile Include="src\Application.cpp" />
+    <ClCompile Include="src\BackBuffer.cpp" />
     <ClCompile Include="src\Camera.cpp" />
     <ClCompile Include="src\D3D12Util.cpp" />
+    <ClCompile Include="src\Debug.cpp" />
     <ClCompile Include="src\DxrShadowMap.cpp" />
     <ClCompile Include="src\FrameResource.cpp" />
     <ClCompile Include="src\GameTimer.cpp" />
@@ -76,6 +81,7 @@
     <ClCompile Include="src\GaussianFilter3x3CS.cpp" />
     <ClCompile Include="src\GBuffer.cpp" />
     <ClCompile Include="src\GeometryGenerator.cpp" />
+    <ClCompile Include="src\GpuResource.cpp" />
     <ClCompile Include="src\Logger.cpp" />
     <ClCompile Include="src\LowRenderer.cpp" />
     <ClCompile Include="src\MathHelper.cpp" />
@@ -214,13 +220,13 @@
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'" Label="Configuration">
     <ConfigurationType>Application</ConfigurationType>
     <UseDebugLibraries>true</UseDebugLibraries>
-    <PlatformToolset>v141</PlatformToolset>
+    <PlatformToolset>v142</PlatformToolset>
     <CharacterSet>Unicode</CharacterSet>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'" Label="Configuration">
     <ConfigurationType>Application</ConfigurationType>
     <UseDebugLibraries>false</UseDebugLibraries>
-    <PlatformToolset>v141</PlatformToolset>
+    <PlatformToolset>v142</PlatformToolset>
     <WholeProgramOptimization>true</WholeProgramOptimization>
     <CharacterSet>Unicode</CharacterSet>
   </PropertyGroup>
@@ -249,8 +255,8 @@
       <WarningLevel>Level3</WarningLevel>
       <Optimization>Disabled</Optimization>
       <SDLCheck>true</SDLCheck>
-      <ConformanceMode>true</ConformanceMode>
-      <AdditionalIncludeDirectories>$(VS2017_LIB)dxc-artifacts\include;$(SolutionDir)include;$(VS2017_LIB)imgui</AdditionalIncludeDirectories>
+      <ConformanceMode>false</ConformanceMode>
+      <AdditionalIncludeDirectories>$(VS2017_LIB)dxc-artifacts\include;$(SolutionDir)include;$(VS2017_LIB)imgui;$(VS2017_LIB)</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <SubSystem>Windows</SubSystem>
@@ -265,8 +271,8 @@
       <FunctionLevelLinking>true</FunctionLevelLinking>
       <IntrinsicFunctions>true</IntrinsicFunctions>
       <SDLCheck>true</SDLCheck>
-      <ConformanceMode>true</ConformanceMode>
-      <AdditionalIncludeDirectories>$(VS2017_LIB)dxc-artifacts\include;$(SolutionDir)include;$(VS2017_LIB)imgui</AdditionalIncludeDirectories>
+      <ConformanceMode>false</ConformanceMode>
+      <AdditionalIncludeDirectories>$(VS2017_LIB)dxc-artifacts\include;$(SolutionDir)include;$(VS2017_LIB)imgui;$(VS2017_LIB)</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <SubSystem>Windows</SubSystem>

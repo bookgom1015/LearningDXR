@@ -12,11 +12,11 @@
 ConstantBuffer<DebugConstants> cb : register(b0);
 
 cbuffer gRootConstants : register(b1) {
-	uint gDisplayMask0;
-	uint gDisplayMask1;
-	uint gDisplayMask2;
-	uint gDisplayMask3;
-	uint gDisplayMask4;
+	uint gSampleMask0;
+	uint gSampleMask1;
+	uint gSampleMask2;
+	uint gSampleMask3;
+	uint gSampleMask4;
 }
 
 Texture2D gDebugMap0	: register(t0);
@@ -25,17 +25,12 @@ Texture2D gDebugMap2	: register(t2);
 Texture2D gDebugMap3	: register(t3);
 Texture2D gDebugMap4	: register(t4);
 
-static const float2 gOffsets[DebugShadeParams::MapCount] = {
+static const float2 gOffsets[DebugShaderParams::MapCount] = {
 	float2(-0.8,  0.8),
 	float2(-0.8,  0.4),
 	float2(-0.8,  0.0),
 	float2(-0.8, -0.4),
 	float2(-0.8, -0.8)
-	//float2(0.8,  0.8),
-	//float2(0.8,  0.4),
-	//float2(0.8,  0.0),
-	//float2(0.8, -0.4),
-	//float2(0.8, -0.8)
 };
 
 struct VertexOut {
@@ -61,11 +56,11 @@ VertexOut VS(uint vid : SV_VertexID, uint instanceID : SV_InstanceID) {
 
 uint GetSampleMask(int index) {
 	switch (index) {
-	case 0: return gDisplayMask0;
-	case 1: return gDisplayMask1;
-	case 2: return gDisplayMask2;
-	case 3: return gDisplayMask3;
-	case 4: return gDisplayMask4;
+	case 0: return gSampleMask0;
+	case 1: return gSampleMask1;
+	case 2: return gSampleMask2;
+	case 3: return gSampleMask3;
+	case 4: return gSampleMask4;
 	}
 	return 0;
 }
@@ -73,27 +68,27 @@ uint GetSampleMask(int index) {
 float4 SampleColor(in Texture2D map, int index, float2 tex) {
 	uint mask = GetSampleMask(index);
 	switch (mask) {
-	case DebugShadeParams::DisplayMark::RGB: {
+	case DebugShaderParams::SampleMask::RGB: {
 		float3 samp = map.SampleLevel(gsamPointClamp, tex, 0).rgb;
 		return float4(samp, 1);
 	}
-	case DebugShadeParams::DisplayMark::RG: {
+	case DebugShaderParams::SampleMask::RG: {
 		float2 samp = map.SampleLevel(gsamPointClamp, tex, 0).rg;
 		return float4(samp, 0, 1);
 	}
-	case DebugShadeParams::DisplayMark::RRR: {
+	case DebugShaderParams::SampleMask::RRR: {
 		float3 samp = map.SampleLevel(gsamPointClamp, tex, 0).rrr;
 		return float4(samp, 1);
 	}
-	case DebugShadeParams::DisplayMark::GGG: {
+	case DebugShaderParams::SampleMask::GGG: {
 		float3 samp = map.SampleLevel(gsamPointClamp, tex, 0).ggg;
 		return float4(samp, 1);
 	}
-	case DebugShadeParams::DisplayMark::AAA: {
+	case DebugShaderParams::SampleMask::AAA: {
 		float3 samp = map.SampleLevel(gsamPointClamp, tex, 0).aaa;
 		return float4(samp, 1);
 	}
-	case DebugShadeParams::DisplayMark::RayHitDist: {
+	case DebugShaderParams::SampleMask::RayHitDist: {
 		const float3 MinDistanceColor = float3(15, 18, 153) / 255;
 		const float3 MaxDistanceColor = float3(170, 220, 200) / 255;
 		float hitDistance = map.SampleLevel(gsamPointClamp, tex, 0).x;

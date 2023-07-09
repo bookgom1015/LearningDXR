@@ -67,6 +67,12 @@
     <Filter Include="Shader Files\Debug">
       <UniqueIdentifier>{5cfb566b-e438-4061-a2fc-92ae527ffb2e}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Header Files\Debug">
+      <UniqueIdentifier>{9e9fae37-40f5-485c-be79-e487f2dff521}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\Debug">
+      <UniqueIdentifier>{1c9333de-eff5-4454-b121-9ce8fef4f23f}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="include\Application.h">
@@ -158,6 +164,15 @@
     </ClInclude>
     <ClInclude Include="include\ShadingHelpers.h">
       <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="include\Debug.h">
+      <Filter>Header Files\Debug</Filter>
+    </ClInclude>
+    <ClInclude Include="include\BackBuffer.h">
+      <Filter>Header Files\Shading</Filter>
+    </ClInclude>
+    <ClInclude Include="include\GpuResource.h">
+      <Filter>Header Files\Util</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
@@ -364,6 +379,15 @@
     </ClCompile>
     <ClCompile Include="src\ShaderManager.cpp">
       <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="src\Debug.cpp">
+      <Filter>Source Files\Debug</Filter>
+    </ClCompile>
+    <ClCompile Include="src\BackBuffer.cpp">
+      <Filter>Source Files\Shading</Filter>
+    </ClCompile>
+    <ClCompile Include="src\GpuResource.cpp">
+      <Filter>Source Files\Util</Filter>
     </ClCompile>
   </ItemGroup>
 </Project>
